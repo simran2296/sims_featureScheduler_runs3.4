@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/718290536.svg)](https://zenodo.org/doi/10.5281/zenodo.10126361)
+
 # sims_featureScheduler_runs3.4
 Yet another repo for Rubin observing strategy experiements
 
