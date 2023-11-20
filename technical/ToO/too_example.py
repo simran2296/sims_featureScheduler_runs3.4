@@ -8,12 +8,15 @@ import sys
 import healpy as hp
 import matplotlib.pylab as plt
 import numpy as np
-import rubin_scheduler
-import rubin_scheduler.scheduler.basis_functions as bf
-import rubin_scheduler.scheduler.detailers as detailers
+
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from astropy.utils import iers
+
+import rubin_scheduler
+import rubin_scheduler.scheduler.basis_functions as bf
+import rubin_scheduler.scheduler.detailers as detailers
+
 from rubin_scheduler.scheduler import sim_runner
 from rubin_scheduler.site_models import _read_fields
 from rubin_scheduler.scheduler.model_observatory import ModelObservatory
@@ -55,6 +58,8 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
 
     Parameters
     ----------
+    
+
     times : list of floats
         The times after the detection that observations should be attempted (hours)
 
@@ -1671,7 +1676,7 @@ def generate_twilight_near_sun(
 
 def set_run_info(dbroot=None, file_end="v3.4_", out_dir=".", rate=None, ntoo=None):
     """Gather versions of software used to record"""
-    extra_info = {}
+    extra_info = {}  # Dictionary to store executed command, git hash, file executed and scheduler git hash
     exec_command = ""
     for arg in sys.argv:
         exec_command += " " + arg
@@ -1693,11 +1698,11 @@ def set_run_info(dbroot=None, file_end="v3.4_", out_dir=".", rate=None, ntoo=Non
 
     # Use the filename of the script to name the output database
     if dbroot is None:
-        fileroot = os.path.basename(sys.argv[0]).replace(".py", "") + "_"
+        fileroot = os.path.basename(sys.argv[0]).replace(".py", "") + "_"   # Use the filename of python script (too_example in this case)
     else:
         fileroot = dbroot 
-    fileroot += "%i_%i" % (rate, ntoo)
-    fileroot = os.path.join(out_dir, fileroot + file_end)
+    fileroot += "%i_%i" % (rate, ntoo) # Append the too rate and nfollow to the db name
+    fileroot = os.path.join(out_dir, fileroot + file_end) # Append the version to the filename
     return fileroot, extra_info
 
 
