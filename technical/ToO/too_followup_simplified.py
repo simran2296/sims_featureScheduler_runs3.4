@@ -1,0 +1,201 @@
+#!/usr/bin/env python
+
+import argparse
+import os
+import subprocess
+import sys
+
+import healpy as hp
+import matplotlib.pylab as plt
+import numpy as np
+import rubin_scheduler
+import rubin_scheduler.scheduler.basis_functions as bf
+import rubin_scheduler.scheduler.detailers as detailers
+from astropy import units as u
+from astropy.coordinates import SkyCoord
+from astropy.utils import iers
+from rubin_scheduler.scheduler import sim_runner
+from rubin_scheduler.site_models import _read_fields
+from rubin_scheduler.scheduler.model_observatory import ModelObservatory
+from rubin_scheduler.scheduler.schedulers import CoreScheduler, SimpleFilterSched
+from rubin_scheduler.scheduler.surveys import (
+    BlobSurvey,
+    GreedySurvey,
+    LongGapSurvey,
+    ScriptedSurvey,
+    BaseMarkovSurvey,
+    generate_ddf_scheduled_obs,
+)
+from rubin_scheduler.scheduler.utils import (
+    ConstantFootprint,
+    EuclidOverlapFootprint,
+    make_rolling_footprints,
+    scheduled_observation,
+    comcam_tessellate,
+    gnomonic_project_toxy,
+    tsp_convex,
+    SimTargetooServer,
+    TargetoO,
+)
+from rubin_scheduler.utils import (
+    _hpid2_ra_dec,
+    _ra_dec2_hpid,
+    _approx_ra_dec2_alt_az,
+    _angular_separation,
+)
+
+# So things don't fail on hyak
+iers.conf.auto_download = False
+# XXX--note this line probably shouldn't be in production
+iers.conf.auto_max_age = None
+
+
+def generate_events(
+    nside=32,
+    mjd_start=59853.5,
+    radius=6.5,
+    survey_length=365.25 * 10,
+    rate=10.0,
+    expires=3.0,
+    seed=42,
+):
+    """Generate a bunch of ToO events
+
+    Parameters
+    ----------
+    rate : float (10)
+        The number of events per year.
+    expires : float (3)
+        How long to keep broadcasting events as relevant (days)
+    """
+
+    np.random.seed(seed=seed)
+    ra, dec = _hpid2_ra_dec(nside, np.arange(hp.nside2npix(nside)))
+    radius = np.radians(radius)
+    # Use a ceil here so we get at least 1 event even if doing a short run.
+    n_events = int(np.ceil(survey_length / 365.25 * rate))
+    names = ["mjd_start", "ra", "dec", "expires"]
+    types = [float] * 4
+    event_table = np.zeros(n_events, dtype=list(zip(names, types)))
+
+    event_table["mjd_start"] = (
+        np.sort(np.random.random(n_events)) * survey_length + mjd_start
+    )
+    event_table["expires"] = event_table["mjd_start"] + expires
+    # Make sure latitude points spread correctly
+    # http://mathworld.wolfram.com/SpherePointPicking.html
+    event_table["ra"] = np.random.rand(n_events) * np.pi * 2
+    event_table["dec"] = np.arccos(2.0 * np.random.rand(n_events) - 1.0) - np.pi / 2.0
+
+    events = []
+    for i, event_time in enumerate(event_table["mjd_start"]):
+        dist = _angular_separation(ra, dec, event_table["ra"][i], event_table["dec"][i])
+        good = np.where(dist <= radius)
+        footprint = np.zeros(ra.size, dtype=float)
+        footprint[good] = 1
+        events.append(
+            TargetoO(
+                i,
+                footprint,
+                event_time,
+                expires,
+                ra_rad_center=event_table["ra"][i],
+                dec_rad_center=event_table["dec"][i],
+            )
+        )
+    events = SimTargetooServer(events)
+    return events, event_table
+
+
+
+
+def example_scheduler(args):
+    survey_length = args.survey_length  # Days
+    out_dir = args.out_dir
+    verbose = args.verbose
+    max_dither = args.maxDither
+    illum_limit = args.moon_illum_limit
+    nexp = args.nexp
+    nslice = args.rolling_nslice
+    rolling_scale = args.rolling_strength
+    dbroot = args.dbroot
+    nights_off = args.nights_off
+    neo_night_pattern = args.neo_night_pattern
+    neo_filters = args.neo_filters
+    neo_repeat = args.neo_repeat
+    ddf_season_frac = args.ddf_season_frac
+    neo_am = args.neo_am
+    neo_elong_req = args.neo_elong_req
+    neo_area_req = args.neo_area_req
+    nside = args.nside
+    too_rate = args.too_rate
+    too_filters = args.filters
+    too_nfollow = args.nfollow
+
+    mjd_start = 60796.0
+    per_night = True  # Dither DDF per night
+
+    camera_ddf_rot_limit = 75.0  # degrees
+
+    fileroot, extra_info = set_run_info(
+        dbroot=dbroot,
+        file_end="v3.4_",
+        out_dir=out_dir,
+        rate=too_rate,
+        ntoo=too_nfollow,
+    )
+
+    sim_ToOs, event_table = generate_events(
+        nside=nside, survey_length=survey_length, rate=too_rate, mjd_start=mjd_start
+    )
+    return sim_ToOs, event_table
+
+
+
+def sched_argparser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--verbose", dest="verbose", action="store_true")
+    parser.set_defaults(verbose=False)
+    parser.add_argument("--survey_length", type=float, default=365.25 * 10)
+    parser.add_argument("--out_dir", type=str, default="")
+    parser.add_argument(
+        "--maxDither", type=float, default=0.7, help="Dither size for DDFs (deg)"
+    )
+    parser.add_argument(
+        "--moon_illum_limit",
+        type=float,
+        default=40.0,
+        help="illumination limit to remove u-band",
+    )
+    parser.add_argument("--nexp", type=int, default=2)
+    parser.add_argument("--rolling_nslice", type=int, default=2)
+    parser.add_argument("--rolling_strength", type=float, default=0.9)
+    parser.add_argument("--dbroot", type=str)
+    parser.add_argument("--ddf_season_frac", type=float, default=0.2)
+    parser.add_argument("--nights_off", type=int, default=3, help="For long gaps")
+    parser.add_argument("--neo_night_pattern", type=int, default=4)
+    parser.add_argument("--neo_filters", type=str, default="riz")
+    parser.add_argument("--neo_repeat", type=int, default=4)
+    parser.add_argument("--neo_am", type=float, default=2.5)
+    parser.add_argument("--neo_elong_req", type=float, default=45.0)
+    parser.add_argument("--neo_area_req", type=float, default=0.0)
+    parser.add_argument(
+        "--setup_only", dest="setup_only", default=False, action="store_true"
+    )
+    parser.add_argument(
+        "--nside",
+        type=int,
+        default=32,
+        help="Nside should be set to default (32) except for tests.",
+    )
+    parser.add_argument("--too_rate", type=float, default=10, help="N events per year")
+    parser.add_argument("--filters", type=str, default="gz")
+    parser.add_argument("--nfollow", type=int, default=1)
+
+    return parser
+
+
+if __name__ == "__main__":
+    parser = sched_argparser()
+    args = parser.parse_args()
+    example_scheduler(args)

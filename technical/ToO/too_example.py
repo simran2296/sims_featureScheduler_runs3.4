@@ -347,13 +347,13 @@ def order_observations(RA, dec):
     better_order = tsp_convex(towns, optimize=False)
     return better_order
 
-
-def generate_events(
+ # This is for generating random events. Another thing I need: I already have 1 event, with follow up plan. Inject it directly into survey
+def generate_events(                                         
     nside=32,
-    mjd_start=59853.5,
-    radius=6.5,
-    survey_length=365.25 * 10,
-    rate=10.0,
+    mjd_start=59853.5,   # Oct 1, 2022
+    radius=6.5,          # ?
+    survey_length=365.25 * 10,  # 10 years
+    rate=10.0,           # ToO rate
     expires=3.0,
     seed=42,
 ):
@@ -368,8 +368,8 @@ def generate_events(
     """
 
     np.random.seed(seed=seed)
-    ra, dec = _hpid2_ra_dec(nside, np.arange(hp.nside2npix(nside)))
-    radius = np.radians(radius)
+    ra, dec = _hpid2_ra_dec(nside, np.arange(hp.nside2npix(nside)))   ##################################################
+    radius = np.radians(radius)                                       # ?
     # Use a ceil here so we get at least 1 event even if doing a short run.
     n_events = int(np.ceil(survey_length / 365.25 * rate))
     names = ["mjd_start", "ra", "dec", "expires"]
@@ -1740,32 +1740,34 @@ def run_sched(
 
 def example_scheduler(args):
     survey_length = args.survey_length  # Days
-    out_dir = args.out_dir
+    out_dir = args.out_dir   
     verbose = args.verbose
     max_dither = args.maxDither
     illum_limit = args.moon_illum_limit
-    nexp = args.nexp
+    nexp = args.nexp                              # No. of exposures?
     nslice = args.rolling_nslice
     rolling_scale = args.rolling_strength
     dbroot = args.dbroot
     nights_off = args.nights_off
-    neo_night_pattern = args.neo_night_pattern
-    neo_filters = args.neo_filters
-    neo_repeat = args.neo_repeat
+    neo_night_pattern = args.neo_night_pattern    # ?
+    neo_filters = args.neo_filters                # ?
+    neo_repeat = args.neo_repeat                  # ?
     ddf_season_frac = args.ddf_season_frac
-    neo_am = args.neo_am
-    neo_elong_req = args.neo_elong_req
-    neo_area_req = args.neo_area_req
+    neo_am = args.neo_am                          # ?
+    neo_elong_req = args.neo_elong_req            # ?
+    neo_area_req = args.neo_area_req              # ?
     nside = args.nside
     too_rate = args.too_rate
     too_filters = args.filters
     too_nfollow = args.nfollow
 
-    mjd_start = 60796.0
+    mjd_start = 60796.0   # May 1, 2025
     per_night = True  # Dither DDF per night
 
     camera_ddf_rot_limit = 75.0  # degrees
 
+    #-----------------------------------------------------------------------
+    
     fileroot, extra_info = set_run_info(
         dbroot=dbroot,
         file_end="v3.4_",
@@ -1774,6 +1776,8 @@ def example_scheduler(args):
         ntoo=too_nfollow,
     )
 
+    #-----------------------------------------------------------------------
+    
     pattern_dict = {
         1: [True],
         2: [True, False],
@@ -1788,6 +1792,8 @@ def example_scheduler(args):
     neo_night_pattern = pattern_dict[neo_night_pattern]
     reverse_neo_night_pattern = [not val for val in neo_night_pattern]
 
+    #------------------------------------------------------------------------
+    
     # Modify the footprint
     sky = EuclidOverlapFootprint(nside=nside, smc_radius=4, lmc_radius=6)
     footprints_hp_array, labels = sky.return_maps()
@@ -1805,7 +1811,11 @@ def example_scheduler(args):
     footprint_mask = footprints_hp["r"] * 0
     footprint_mask[np.where(footprints_hp["r"] > 0)] = 1
 
+    #-----------------------------------------------------------------------
+
     repeat_night_weight = None
+
+    #------------------------------------------------------------------------
 
     sim_ToOs, event_table = generate_events(
         nside=nside, survey_length=survey_length, rate=too_rate, mjd_start=mjd_start
