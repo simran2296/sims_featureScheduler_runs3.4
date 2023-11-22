@@ -73,7 +73,9 @@ def generate_events(
 
     np.random.seed(seed=seed)
     ra, dec = _hpid2_ra_dec(nside, np.arange(hp.nside2npix(nside)))
+    print(ra, '  ' , dec)
     radius = np.radians(radius)
+    print(radius)
     # Use a ceil here so we get at least 1 event even if doing a short run.
     n_events = int(np.ceil(survey_length / 365.25 * rate))
     names = ["mjd_start", "ra", "dec", "expires"]
@@ -105,6 +107,9 @@ def generate_events(
                 dec_rad_center=event_table["dec"][i],
             )
         )
+        print(ra.size)
+        print(footprint)
+        
     table = tabulate(event_table, names)
     print('ToO Events: \n',table)
 

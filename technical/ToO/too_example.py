@@ -1782,25 +1782,26 @@ def example_scheduler(args):
         ntoo=too_nfollow,
     )
 
-    #-----------------------------------------------------------------------
+    #-----------------------------------------------------------------------?????????????????????????????????????????
     
-    pattern_dict = {
-        1: [True],
-        2: [True, False],
-        3: [True, False, False],
-        4: [True, False, False, False],
-        # 4 on, 4 off
-        5: [True, True, True, True, False, False, False, False],
-        # 3 on 4 off
-        6: [True, True, True, False, False, False, False],
-        7: [True, True, False, False, False, False],
-    }
-    neo_night_pattern = pattern_dict[neo_night_pattern]
-    reverse_neo_night_pattern = [not val for val in neo_night_pattern]
+    
+
+    #------------------------------------------------------------------------???????????????????????????????????????????
+    
+    repeat_night_weight = None
 
     #------------------------------------------------------------------------
-    
-    # Modify the footprint
+
+    sim_ToOs, event_table = generate_events(
+        nside=nside, survey_length=survey_length, rate=too_rate, mjd_start=mjd_start
+    )
+
+    observatory = ModelObservatory(nside=nside, mjd_start=mjd_start, sim_to_o=sim_ToOs)   # sim_ToOs = events = SimTargetooServer(events)
+    conditions = observatory.return_conditions()
+
+    #------------------------------------------------------------------------?????????????????????????????????????????????
+
+     # Modify the footprint
     sky = EuclidOverlapFootprint(nside=nside, smc_radius=4, lmc_radius=6)
     footprints_hp_array, labels = sky.return_maps()
 
@@ -1817,19 +1818,8 @@ def example_scheduler(args):
     footprint_mask = footprints_hp["r"] * 0
     footprint_mask[np.where(footprints_hp["r"] > 0)] = 1
 
-    #-----------------------------------------------------------------------
 
-    repeat_night_weight = None
-
-    #------------------------------------------------------------------------
-
-    sim_ToOs, event_table = generate_events(
-        nside=nside, survey_length=survey_length, rate=too_rate, mjd_start=mjd_start
-    )
-
-    observatory = ModelObservatory(nside=nside, mjd_start=mjd_start, sim_to_o=sim_ToOs)
-    conditions = observatory.return_conditions()
-
+    
     footprints = make_rolling_footprints(
         fp_hp=footprints_hp,
         mjd_start=conditions.mjd_start,
@@ -1842,6 +1832,8 @@ def example_scheduler(args):
         n_cycles=4,
     )
 
+
+    
     # Let's make a footprint to follow up ToO events
     too_footprint = footprints_hp["r"] * 0 + np.nan
     too_footprint[np.where(footprints_hp["r"] > 0)[0]] = 1.0
@@ -1876,6 +1868,8 @@ def example_scheduler(args):
         detailers.Rottep2RotspDesiredDetailer(),
     ]
 
+    # ToO Survey ----------------------------------------------------------------------------------
+    
     # Set up the damn ToO kwargs
     times = [0, 1, 2, 4, 24]
     filters_at_times = [too_filters] * 4 + ["gy"]
@@ -1892,13 +1886,35 @@ def example_scheduler(args):
         )
     ]
 
+    # DDF Survey ------------------------------------------------------------------------------------
     ddfs = ddf_surveys(
         detailers=details,
         season_unobs_frac=ddf_season_frac,
         euclid_detailers=euclid_detailers,
     )
 
+    # Greedy Survey ----------------------------------------------------------------------------------
+
+    
     greedy = gen_greedy_surveys(nside, nexp=nexp, footprints=footprints)
+
+
+    # Neo Survey -------------------------------------------------------------------------------------
+
+    pattern_dict = {
+        1: [True],
+        2: [True, False],
+        3: [True, False, False],
+        4: [True, False, False, False],
+        # 4 on, 4 off
+        5: [True, True, True, True, False, False, False, False],
+        # 3 on 4 off
+        6: [True, True, True, False, False, False, False],
+        7: [True, True, False, False, False, False],
+    }
+    neo_night_pattern = pattern_dict[neo_night_pattern]
+    reverse_neo_night_pattern = [not val for val in neo_night_pattern]
+    
     neo = generate_twilight_near_sun(
         nside,
         night_pattern=neo_night_pattern,
@@ -1909,12 +1925,18 @@ def example_scheduler(args):
         max_elong=neo_elong_req,
         area_required=neo_area_req,
     )
+
+    # Blobs Survey ----------------------------------------------------------------------------------
+    
     blobs = generate_blobs(
         nside,
         nexp=nexp,
         footprints=footprints,
         mjd_start=conditions.mjd_start,
     )
+
+    # Twilight Blobs Survey -------------------------------------------------------------------------
+    
     twi_blobs = generate_twi_blobs(
         nside,
         nexp=nexp,
@@ -1923,6 +1945,9 @@ def example_scheduler(args):
         repeat_night_weight=repeat_night_weight,
         night_pattern=reverse_neo_night_pattern,
     )
+
+    #-------------------------------------------------------------------------------------------------
+    
     surveys = [toos, ddfs, long_gaps, blobs, twi_blobs, neo, greedy]
 
     scheduler = CoreScheduler(surveys, nside=nside)
