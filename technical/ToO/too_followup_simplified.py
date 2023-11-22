@@ -44,6 +44,8 @@ from rubin_scheduler.utils import (
     _angular_separation,
 )
 
+from tabulate import tabulate
+
 # So things don't fail on hyak
 iers.conf.auto_download = False
 # XXX--note this line probably shouldn't be in production
@@ -103,10 +105,43 @@ def generate_events(
                 dec_rad_center=event_table["dec"][i],
             )
         )
+    table = tabulate(event_table, names)
+    print('ToO Events: \n',table)
+
     events = SimTargetooServer(events)
     return events, event_table
 
 
+def set_run_info(dbroot=None, file_end="v3.4_", out_dir=".", rate=None, ntoo=None):
+    """Gather versions of software used to record"""
+    extra_info = {}  # Dictionary to store executed command, git hash, file executed and scheduler git hash
+    exec_command = ""
+    for arg in sys.argv:
+        exec_command += " " + arg
+    extra_info["exec command"] = exec_command
+    try:
+        extra_info["git hash"] = subprocess.check_output(["git", "rev-parse", "HEAD"])
+    except subprocess.CalledProcessError:
+        extra_info["git hash"] = "Not in git repo"
+
+    extra_info["file executed"] = os.path.realpath(__file__)
+    try:
+        rs_path = rubin_scheduler.__path__[0]
+        hash_file = os.path.join(rs_path, "../", ".git/refs/heads/main")
+        extra_info["rubin_scheduler git hash"] = subprocess.check_output(
+            ["cat", hash_file]
+        )
+    except subprocess.CalledProcessError:
+        pass
+
+    # Use the filename of the script to name the output database
+    if dbroot is None:
+        fileroot = os.path.basename(sys.argv[0]).replace(".py", "") + "_"   # Use the filename of python script (too_example in this case)
+    else:
+        fileroot = dbroot 
+    fileroot += "%i_%i" % (rate, ntoo) # Append the too rate and nfollow to the db name
+    fileroot = os.path.join(out_dir, fileroot + file_end) # Append the version to the filename
+    return fileroot, extra_info
 
 
 def example_scheduler(args):
@@ -145,10 +180,15 @@ def example_scheduler(args):
         ntoo=too_nfollow,
     )
 
+    print('fileroot: ',fileroot,'\n Extra Info: ', extra_info)
+
+    
     sim_ToOs, event_table = generate_events(
         nside=nside, survey_length=survey_length, rate=too_rate, mjd_start=mjd_start
     )
-    return sim_ToOs, event_table
+
+    #print('Events: ',sim_ToOs,'\n Event Table: ', event_table)
+
 
 
 

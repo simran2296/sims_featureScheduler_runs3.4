@@ -9,6 +9,8 @@ import healpy as hp
 import matplotlib.pylab as plt
 import numpy as np
 
+from tabulate import tabulate
+
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from astropy.utils import iers
@@ -371,7 +373,7 @@ def generate_events(
     ra, dec = _hpid2_ra_dec(nside, np.arange(hp.nside2npix(nside)))   ##################################################
     radius = np.radians(radius)                                       # ?
     # Use a ceil here so we get at least 1 event even if doing a short run.
-    n_events = int(np.ceil(survey_length / 365.25 * rate))
+    n_events = int(np.ceil(survey_length / 365.25 * rate))            # Calculates of no. of ToO happening in the given survey duration based on the yearly rate
     names = ["mjd_start", "ra", "dec", "expires"]
     types = [float] * 4
     event_table = np.zeros(n_events, dtype=list(zip(names, types)))
@@ -389,7 +391,7 @@ def generate_events(
     for i, event_time in enumerate(event_table["mjd_start"]):
         dist = _angular_separation(ra, dec, event_table["ra"][i], event_table["dec"][i])
         good = np.where(dist <= radius)
-        footprint = np.zeros(ra.size, dtype=float)
+        footprint = np.zeros(ra.size, dtype=float)     # footprints : np.array healpix maps. 1 for areas to observe, 0 for no observe.
         footprint[good] = 1
         events.append(
             TargetoO(
@@ -402,6 +404,10 @@ def generate_events(
             )
         )
     events = SimTargetooServer(events)
+
+    table = tabulate(event_table, names)
+    print('ToO Events: \n',table)
+
     return events, event_table
 
 
