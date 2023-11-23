@@ -1838,13 +1838,7 @@ def example_scheduler(args):
     too_footprint = footprints_hp["r"] * 0 + np.nan
     too_footprint[np.where(footprints_hp["r"] > 0)[0]] = 1.0
 
-    gaps_night_pattern = [True] + [False] * nights_off
 
-    long_gaps = gen_long_gaps_survey(
-        nside=nside,
-        footprints=footprints,
-        night_pattern=gaps_night_pattern,
-    )
 
     # Set up the DDF surveys to dither
     u_detailer = detailers.FilterNexp(filtername="u", nexp=1)
@@ -1886,7 +1880,18 @@ def example_scheduler(args):
         )
     ]
 
+    # Long gap survey -------------------------------------------------------------------------------
+    
+    gaps_night_pattern = [True] + [False] * nights_off
+
+    long_gaps = gen_long_gaps_survey(
+        nside=nside,
+        footprints=footprints,
+        night_pattern=gaps_night_pattern,
+    )
+
     # DDF Survey ------------------------------------------------------------------------------------
+    
     ddfs = ddf_surveys(
         detailers=details,
         season_unobs_frac=ddf_season_frac,
