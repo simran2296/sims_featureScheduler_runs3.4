@@ -4,6 +4,7 @@ import argparse
 import os
 import subprocess
 import sys
+import json
 
 import healpy as hp
 import matplotlib.pylab as plt
@@ -116,6 +117,56 @@ def generate_events(
     events = SimTargetooServer(events)
     return events, event_table
 
+def incoming_event(
+        #json_file=json_file,
+    nside=32,
+    mjd_start=59853.5,
+    #radius=6.5,
+    #survey_length=365.25 * 10,
+    #rate=10.0,
+    expires=3.0,
+    seed=42,
+):
+    """Gather Information from the Startegy Code .json file"""
+
+    # Open the json file 
+    with open(sys.argv[1], 'r') as f:
+        data = json.load(f)
+
+    expTime = []
+    RA = []
+    dec = []
+    filters = []
+
+    # No. of pointings
+    n_point = len([ele for ele in data if isinstance(ele, dict)])
+    
+    for i in range(n_point):
+        expTime.append(data[i]['expTime'])
+        RA.append(data[i]['RA'])
+        dec.append(data[i]['dec'])
+        filters.append(data[i]['filter'])
+
+    f.close()
+
+    names = ["mjd_start", "ra", "dec", "expires"]
+    types = [float] * 4
+    pointing_table = np.zeros(n_point, dtype=list(zip(names, types)))
+
+    pointing_table["mjd_start"] = np.full(n_point, mjd_start)
+    pointing_table["expires"] = pointing_table["mjd_start"] + expires
+    pointing_table["ra"] = np.array(RA)
+    pointing_table["dec"] = np.array(dec)
+
+    table = tabulate(pointing_table, names)
+    print('ToO Events: \n',table)
+
+
+    
+    pointings = []
+    #for 
+    return pointings, pointing_table
+
 
 def set_run_info(dbroot=None, file_end="v3.4_", out_dir=".", rate=None, ntoo=None):
     """Gather versions of software used to record"""
@@ -171,12 +222,13 @@ def example_scheduler(args):
     too_rate = args.too_rate
     too_filters = args.filters
     too_nfollow = args.nfollow
+    #json_file = args.json_file
 
     mjd_start = 60796.0
     per_night = True  # Dither DDF per night
 
     camera_ddf_rot_limit = 75.0  # degrees
-
+    '''
     fileroot, extra_info = set_run_info(
         dbroot=dbroot,
         file_end="v3.4_",
@@ -184,13 +236,15 @@ def example_scheduler(args):
         rate=too_rate,
         ntoo=too_nfollow,
     )
+    '''
+    #  print('fileroot: ',fileroot,'\n Extra Info: ', extra_info)
 
-    print('fileroot: ',fileroot,'\n Extra Info: ', extra_info)
+    sim_ToOs, event_table = incoming_event(nside=nside,mjd_start=mjd_start)
 
     
-    sim_ToOs, event_table = generate_events(
-        nside=nside, survey_length=survey_length, rate=too_rate, mjd_start=mjd_start
-    )
+    #sim_ToOs, event_table = generate_events(
+    #    nside=nside, survey_length=survey_length, rate=too_rate, mjd_start=mjd_start
+    # )
 
     #print('Events: ',sim_ToOs,'\n Event Table: ', event_table)
 
@@ -237,6 +291,8 @@ def sched_argparser():
     parser.add_argument("--filters", type=str, default="gz")
     parser.add_argument("--nfollow", type=int, default=1)
 
+
+    parser.add_argument("json", type = argparse.FileType('r'))
     return parser
 
 
