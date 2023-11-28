@@ -16,6 +16,7 @@ from astropy.coordinates import SkyCoord
 from astropy.utils import iers
 
 import rubin_scheduler
+import rubin_scheduler.skybrightness_pre as sb
 import rubin_scheduler.scheduler.basis_functions as bf
 import rubin_scheduler.scheduler.detailers as detailers
 
@@ -1798,6 +1799,9 @@ def example_scheduler(args):
 
     observatory = ModelObservatory(nside=nside, mjd_start=mjd_start, sim_to_o=sim_ToOs)   # sim_ToOs = events = SimTargetooServer(events)
     conditions = observatory.return_conditions()
+
+    # clobber the sky brightness to use one that loads only 50 nights at a time
+    observatory.sky_model = sb.SkyModelPre(load_length=50)
 
     #------------------------------------------------------------------------?????????????????????????????????????????????
 
