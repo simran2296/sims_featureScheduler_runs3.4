@@ -23,3 +23,6 @@ if __name__ == "__main__":
 
     for bf in sched.survey_lists[2][0].basis_functions:
         print(bf, np.nanmax(bf(conditions)))
+
+    import pdb ; pdb.set_trace()
+    
