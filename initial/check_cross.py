@@ -14,7 +14,7 @@ if __name__ == "__main__":
     scheduler = example_scheduler(args)
 
     mo = ModelObservatory(mjd_start=60796.0)
-    sched, mo = restore_scheduler(188, scheduler, mo, 'initial_v3.4_10yrs.db')
+    sched, mo = restore_scheduler(188, scheduler, mo, 'initial_v3.4_0yrs.db')
     conditions = mo.return_conditions()
 
     for sl in sched.survey_lists:
@@ -25,4 +25,3 @@ if __name__ == "__main__":
         print(bf, np.nanmax(bf(conditions)))
 
     import pdb ; pdb.set_trace()
-    
