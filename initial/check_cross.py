@@ -21,3 +21,5 @@ if __name__ == "__main__":
         for survey in sl:
             print(survey.survey_name, np.nanmax(survey.calc_reward_function(conditions)))
 
+    for bf in sched.survey_lists[2][0].basis_functions:
+        print(bf, np.nanmax(bf(conditions)))
