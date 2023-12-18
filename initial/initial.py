@@ -55,6 +55,7 @@ def standard_bf(
     season_end_hour=2.0,
     moon_distance=30.0,
     strict=True,
+    wind_speed_maximum=20.0,
 ):
     """Generate the standard basis functions that are shared by blob surveys
 
@@ -240,6 +241,7 @@ def standard_bf(
             0.0,
         )
     )
+    bfs.append((bf.AvoidDirectWind(nside=nside, wind_speed_maximum=wind_speed_maximum), 0))
     filternames = [fn for fn in [filtername, filtername2] if fn is not None]
     bfs.append((bf.FilterLoadedBasisFunction(filternames=filternames), 0))
     bfs.append((bf.PlanetMaskBasisFunction(nside=nside), 0.0))
@@ -481,7 +483,7 @@ def gen_long_gaps_survey(
             blob_names=blob_names,
         )
         scripted = ScriptedSurvey(
-            [], nside=nside, ignore_obs=["blob", "DDF", "twi", "pair"]
+            [bf.AvoidDirectWind(nside=nside)], nside=nside, ignore_obs=["blob", "DDF", "twi", "pair"]
         )
         surveys.append(
             LongGapSurvey(blob[0], scripted, gap_range=gap_range, avoid_zenith=True)
@@ -1077,7 +1079,7 @@ def generate_twi_blobs(
     return surveys
 
 
-def ddf_surveys(detailers=None, season_unobs_frac=0.2, euclid_detailers=None):
+def ddf_surveys(detailers=None, season_unobs_frac=0.2, euclid_detailers=None, nside=None):
     obs_array = generate_ddf_scheduled_obs(season_unobs_frac=season_unobs_frac)
 
     euclid_obs = np.where(
@@ -1087,10 +1089,10 @@ def ddf_surveys(detailers=None, season_unobs_frac=0.2, euclid_detailers=None):
         (obs_array["note"] != "DD:EDFS_b") & (obs_array["note"] != "DD:EDFS_a")
     )[0]
 
-    survey1 = ScriptedSurvey([], detailers=detailers)
+    survey1 = ScriptedSurvey([bf.AvoidDirectWind(nside=nside)], detailers=detailers)
     survey1.set_script(obs_array[all_other])
 
-    survey2 = ScriptedSurvey([], detailers=euclid_detailers)
+    survey2 = ScriptedSurvey([bf.AvoidDirectWind(nside=nside)], detailers=euclid_detailers)
     survey2.set_script(obs_array[euclid_obs])
 
     return [survey1, survey2]
@@ -1476,6 +1478,7 @@ def example_scheduler(args):
         detailers=details,
         season_unobs_frac=ddf_season_frac,
         euclid_detailers=euclid_detailers,
+        nside=nside,
     )
 
     greedy = gen_greedy_surveys(nside, nexp=nexp, footprints=footprints)
