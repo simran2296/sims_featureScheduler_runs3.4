@@ -1197,7 +1197,7 @@ def generate_twilight_near_sun(
     """
     survey_name = "twilight_near_sun"
     footprint = ecliptic_target(nside=nside, mask=footprint_mask)
-    constant_fp = ConstantFootprint()
+    constant_fp = ConstantFootprint(nside=nside)
     for filtername in filters:
         constant_fp.set_footprint(filtername, footprint)
 
@@ -1342,7 +1342,7 @@ def run_sched(
     scheduler,
     survey_length=365.25,
     nside=32,
-    fileroot="baseline_",
+    filename=None,
     verbose=False,
     extra_info=None,
     illum_limit=40.0,
@@ -1350,7 +1350,6 @@ def run_sched(
 ):
     """Run survey
     """
-    years = np.round(survey_length / 365.25)
     n_visit_limit = None
     fs = SimpleFilterSched(illum_limit=illum_limit)
     observatory = ModelObservatory(nside=nside, mjd_start=mjd_start)
@@ -1358,7 +1357,7 @@ def run_sched(
         observatory,
         scheduler,
         survey_length=survey_length,
-        filename=fileroot + "%iyrs.db" % years,
+        filename=filename,
         delete_past=True,
         n_visit_limit=n_visit_limit,
         verbose=verbose,
@@ -1513,11 +1512,12 @@ def example_scheduler(args):
     if args.setup_only:
         return scheduler
     else:
+        years = np.round(survey_length / 365.25)
         observatory, scheduler, observations = run_sched(
             scheduler,
             survey_length=survey_length,
             verbose=verbose,
-            fileroot=os.path.join(out_dir, fileroot),
+            filename=os.path.join(out_dir, fileroot + "%iyrs.db" % years),
             extra_info=extra_info,
             nside=nside,
             illum_limit=illum_limit,
