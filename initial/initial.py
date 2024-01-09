@@ -242,7 +242,9 @@ def standard_bf(
             0.0,
         )
     )
-    bfs.append((bf.AvoidDirectWind(nside=nside, wind_speed_maximum=wind_speed_maximum), 0))
+    bfs.append(
+        (bf.AvoidDirectWind(nside=nside, wind_speed_maximum=wind_speed_maximum), 0)
+    )
     filternames = [fn for fn in [filtername, filtername2] if fn is not None]
     bfs.append((bf.FilterLoadedBasisFunction(filternames=filternames), 0))
     bfs.append((bf.PlanetMaskBasisFunction(nside=nside), 0.0))
@@ -484,7 +486,9 @@ def gen_long_gaps_survey(
             blob_names=blob_names,
         )
         scripted = ScriptedSurvey(
-            [bf.AvoidDirectWind(nside=nside)], nside=nside, ignore_obs=["blob", "DDF", "twi", "pair"]
+            [bf.AvoidDirectWind(nside=nside)],
+            nside=nside,
+            ignore_obs=["blob", "DDF", "twi", "pair"],
         )
         surveys.append(
             LongGapSurvey(blob[0], scripted, gap_range=gap_range, avoid_zenith=True)
@@ -1080,7 +1084,9 @@ def generate_twi_blobs(
     return surveys
 
 
-def ddf_surveys(detailers=None, season_unobs_frac=0.2, euclid_detailers=None, nside=None):
+def ddf_surveys(
+    detailers=None, season_unobs_frac=0.2, euclid_detailers=None, nside=None
+):
     obs_array = generate_ddf_scheduled_obs(season_unobs_frac=season_unobs_frac)
 
     euclid_obs = np.where(
@@ -1090,10 +1096,14 @@ def ddf_surveys(detailers=None, season_unobs_frac=0.2, euclid_detailers=None, ns
         (obs_array["note"] != "DD:EDFS_b") & (obs_array["note"] != "DD:EDFS_a")
     )[0]
 
-    survey1 = ScriptedSurvey([bf.AvoidDirectWind(nside=nside)], detailers=detailers)
+    survey1 = ScriptedSurvey(
+        [bf.AvoidDirectWind(nside=nside)], nside=nside, detailers=detailers
+    )
     survey1.set_script(obs_array[all_other])
 
-    survey2 = ScriptedSurvey([bf.AvoidDirectWind(nside=nside)], detailers=euclid_detailers)
+    survey2 = ScriptedSurvey(
+        [bf.AvoidDirectWind(nside=nside)], nside=nside, detailers=euclid_detailers
+    )
     survey2.set_script(obs_array[euclid_obs])
 
     return [survey1, survey2]
@@ -1310,8 +1320,7 @@ def generate_twilight_near_sun(
 
 
 def set_run_info(dbroot=None, file_end="v3.4_", out_dir="."):
-    """Gather versions of software used to record
-    """
+    """Gather versions of software used to record"""
     extra_info = {}
     exec_command = ""
     for arg in sys.argv:
@@ -1326,7 +1335,9 @@ def set_run_info(dbroot=None, file_end="v3.4_", out_dir="."):
     try:
         rs_path = rubin_scheduler.__path__[0]
         hash_file = os.path.join(rs_path, "../", ".git/refs/heads/main")
-        extra_info["rubin_scheduler git hash"] = subprocess.check_output(["cat", hash_file])
+        extra_info["rubin_scheduler git hash"] = subprocess.check_output(
+            ["cat", hash_file]
+        )
     except subprocess.CalledProcessError:
         pass
 
@@ -1349,8 +1360,7 @@ def run_sched(
     illum_limit=40.0,
     mjd_start=60796.0,
 ):
-    """Run survey
-    """
+    """Run survey"""
     n_visit_limit = None
     fs = SimpleFilterSched(illum_limit=illum_limit)
     observatory = ModelObservatory(nside=nside, mjd_start=mjd_start)
@@ -1395,7 +1405,9 @@ def example_scheduler(args):
 
     camera_ddf_rot_limit = 75.0  # degrees
 
-    fileroot, extra_info = set_run_info(dbroot=dbroot, file_end="v3.4_", out_dir=out_dir)
+    fileroot, extra_info = set_run_info(
+        dbroot=dbroot, file_end="v3.4_", out_dir=out_dir
+    )
 
     pattern_dict = {
         1: [True],
@@ -1531,35 +1543,72 @@ def example_scheduler(args):
 
 def sched_argparser():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--verbose", dest="verbose", action="store_true", help="Print more output")
+    parser.add_argument(
+        "--verbose", dest="verbose", action="store_true", help="Print more output"
+    )
     parser.set_defaults(verbose=False)
-    parser.add_argument("--survey_length", type=float, default=365.25 * 10, help="Survey length in days")
+    parser.add_argument(
+        "--survey_length", type=float, default=365.25 * 10, help="Survey length in days"
+    )
     parser.add_argument("--out_dir", type=str, default="", help="Output directory")
-    parser.add_argument("--maxDither", type=float, default=0.7, help="Dither size for DDFs (deg)")
+    parser.add_argument(
+        "--maxDither", type=float, default=0.7, help="Dither size for DDFs (deg)"
+    )
     parser.add_argument(
         "--moon_illum_limit",
         type=float,
         default=40.0,
         help="illumination limit to remove u-band",
     )
-    parser.add_argument("--nexp", type=int, default=2, help="Number of exposures per visit")
-    parser.add_argument("--rolling_nslice", type=int, default=2, help="Number of independent rolling stripes")
-    parser.add_argument("--rolling_strength", type=float, default=0.9, help="Rolling strength between 0-1")
+    parser.add_argument(
+        "--nexp", type=int, default=2, help="Number of exposures per visit"
+    )
+    parser.add_argument(
+        "--rolling_nslice",
+        type=int,
+        default=2,
+        help="Number of independent rolling stripes",
+    )
+    parser.add_argument(
+        "--rolling_strength",
+        type=float,
+        default=0.9,
+        help="Rolling strength between 0-1",
+    )
     parser.add_argument("--dbroot", type=str, help="Database root")
     parser.add_argument(
-        "--ddf_season_frac", type=float, default=0.2, help="How much of season to use for DDFs"
+        "--ddf_season_frac",
+        type=float,
+        default=0.2,
+        help="How much of season to use for DDFs",
     )
     parser.add_argument("--nights_off", type=int, default=3, help="For long gaps")
     parser.add_argument(
-        "--neo_night_pattern", type=int, default=4, help="Which night pattern to use for inner solar system"
+        "--neo_night_pattern",
+        type=int,
+        default=4,
+        help="Which night pattern to use for inner solar system",
     )
-    parser.add_argument("--neo_filters", type=str, default="riz", help="Filters for inner solar system")
     parser.add_argument(
-        "--neo_repeat", type=int, default=4, help="Number of repeat visits for inner solar system"
+        "--neo_filters", type=str, default="riz", help="Filters for inner solar system"
     )
-    parser.add_argument("--neo_am", type=float, default=2.5, help="Airmass limit for twilight NEO visits")
     parser.add_argument(
-        "--neo_elong_req", type=float, default=45.0, help="Solar elongation required for inner solar system"
+        "--neo_repeat",
+        type=int,
+        default=4,
+        help="Number of repeat visits for inner solar system",
+    )
+    parser.add_argument(
+        "--neo_am",
+        type=float,
+        default=2.5,
+        help="Airmass limit for twilight NEO visits",
+    )
+    parser.add_argument(
+        "--neo_elong_req",
+        type=float,
+        default=45.0,
+        help="Solar elongation required for inner solar system",
     )
     parser.add_argument(
         "--neo_area_req",
@@ -1575,14 +1624,16 @@ def sched_argparser():
         help="Only construct scheduler, do not simulate",
     )
     parser.add_argument(
-        "--nside", type=int, default=32, help="Nside should be set to default (32) except for tests."
+        "--nside",
+        type=int,
+        default=32,
+        help="Nside should be set to default (32) except for tests.",
     )
-    
+
     return parser
 
 
 if __name__ == "__main__":
-
     parser = sched_argparser()
     args = parser.parse_args()
     example_scheduler(args)
