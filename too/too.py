@@ -1909,9 +1909,9 @@ def example_scheduler(args):
 
     camera_rot_limits = [-80., 80.]
     detailer_list = []
-    detailer_list.append(detailers.Camera_rot_detailer(min_rot=np.min(camera_rot_limits),
-                                                       max_rot=np.max(camera_rot_limits)))
-    detailer_list.append(detailers.Rottep2Rotsp_desired_detailer())
+    detailer_list.append(detailers.CameraRotDetailer(min_rot=np.min(camera_rot_limits),
+                                                     max_rot=np.max(camera_rot_limits)))
+    detailer_list.append(detailers.Rottep2RotspDesiredDetailer())
 
     toos = [
         ToO_scripted_survey(
