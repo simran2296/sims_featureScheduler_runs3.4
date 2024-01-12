@@ -1575,7 +1575,7 @@ def sched_argparser():
     parser.add_argument(
         "--nside", type=int, default=32, help="Nside should be set to default (32) except for tests."
     )
-    parser.add_argument("--mjd_plus", default=0, help="number of days to add to the mjd start")
+    parser.add_argument("--mjd_plus", type=float, default=0, help="number of days to add to the mjd start")
     
     return parser
 

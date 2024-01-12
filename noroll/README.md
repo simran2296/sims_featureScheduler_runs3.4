@@ -1,0 +1,1 @@
+The usual baseline with no rolling. Also running at a variety of start dates to see how start date can influence uniformity.
