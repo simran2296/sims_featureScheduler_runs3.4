@@ -307,6 +307,19 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
             self.reward = self.reward_val
         return self.reward
 
+    def generate_observations(self, conditions):
+        observations = self.generate_observations_rough(conditions)
+        if np.min(np.concatenate(observations)["RA"]) < 0:
+            import pdb ; pdb.set_trace()
+
+        for detailer in self.detailers:
+            observations = detailer(observations, conditions)
+
+        if np.min(np.concatenate(observations)["RA"]) < 0:
+            import pdb ; pdb.set_trace()
+
+        return observations
+
 
 def mean_longitude(longitude):
     """Compute a mean longitude, accounting for wrap around."""
@@ -1856,22 +1869,6 @@ def example_scheduler(args):
         detailers.Rottep2RotspDesiredDetailer(),
     ]
 
-    # Set up the damn ToO kwargs
-    times = [0, 1, 2, 4, 24]
-    filters_at_times = [too_filters] * 4 + ["gy"]
-    nvis = [1, 1, 1, 1, 6]
-    toos = [
-        ToO_scripted_survey(
-            [],
-            nside=nside,
-            followup_footprint=too_footprint,
-            times=times[0:too_nfollow],
-            filters_at_times=filters_at_times[0:too_nfollow],
-            nvis=nvis[0:too_nfollow],
-            detailers=details,
-        )
-    ]
-
     ddfs = ddf_surveys(
         detailers=details,
         season_unobs_frac=ddf_season_frac,
@@ -1904,6 +1901,30 @@ def example_scheduler(args):
         repeat_night_weight=repeat_night_weight,
         night_pattern=reverse_neo_night_pattern,
     )
+
+    # Set up the damn ToO kwargs
+    times = [0, 1, 2, 4, 24]
+    filters_at_times = [too_filters] * 4 + ["gy"]
+    nvis = [1, 1, 1, 1, 6]
+
+    camera_rot_limits = [-80., 80.]
+    detailer_list = []
+    detailer_list.append(detailers.Camera_rot_detailer(min_rot=np.min(camera_rot_limits),
+                                                       max_rot=np.max(camera_rot_limits)))
+    detailer_list.append(detailers.Rottep2Rotsp_desired_detailer())
+
+    toos = [
+        ToO_scripted_survey(
+            [],
+            nside=nside,
+            followup_footprint=too_footprint,
+            times=times[0:too_nfollow],
+            filters_at_times=filters_at_times[0:too_nfollow],
+            nvis=nvis[0:too_nfollow],
+            detailers=detailer_list,
+        )
+    ]
+
     surveys = [toos, ddfs, long_gaps, blobs, twi_blobs, neo, greedy]
 
     scheduler = CoreScheduler(surveys, nside=nside)
