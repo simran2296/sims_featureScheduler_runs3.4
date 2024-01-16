@@ -1513,15 +1513,17 @@ def example_scheduler(args):
     neo_elong_req = args.neo_elong_req
     neo_area_req = args.neo_area_req
     nside = args.nside
+    mjd_plus = args.mjd_plus
 
     # Be sure to also update and regenerate DDF grid save file if changing mjd_start
-    mjd_start = 60796.0
+    mjd_start = 60796.0 + mjd_plus
     per_night = True  # Dither DDF per night
 
     camera_ddf_rot_limit = 75.0  # degrees
 
     fileroot, extra_info = set_run_info(
-        dbroot=dbroot, file_end="v3.4_", out_dir=out_dir
+        dbroot=dbroot, file_end="mjdp%i_v3.4_" % mjd_plus,
+        out_dir=out_dir
     )
 
     pattern_dict = {
@@ -1744,6 +1746,8 @@ def sched_argparser():
         default=32,
         help="Nside should be set to default (32) except for tests.",
     )
+
+    parser.add_argument("--mjd_plus", type=float, default=0, help="number of days to add to the mjd start")
 
     return parser
 
