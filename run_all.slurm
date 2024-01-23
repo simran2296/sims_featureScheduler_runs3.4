@@ -2,7 +2,7 @@
 
 ## Job Name
 
-#SBATCH --job-name=initial3.4
+#SBATCH --job-name=big_run3.4
 
 ## Allocation Definition
 
@@ -14,12 +14,12 @@
 
 ## Nodes
 
-#SBATCH --nodes=1
+#SBATCH --nodes=3
 #SBATCH --ntasks-per-node=28
 
 ## Walltime (hours:min:sec) Do not specify a walltime substantially more than your job needs.
 
-#SBATCH --time=36:00:00
+#SBATCH --time=24:00:00
 
 ## Memory per node. It is important to specify the memory since the default memory is very small.
 
@@ -33,7 +33,7 @@
 
 ## Specify the working directory for this job
 
-#SBATCH --chdir=/gscratch/scrubbed/yoachim/sims_featureScheduler_runs3.4/initial
+#SBATCH --chdir=/gscratch/scrubbed/yoachim/sims_featureScheduler_runs3.4
 
 ##turn on e-mail notification
 
@@ -47,24 +47,20 @@
 
 ## Set up the evironment
 source ~/anaconda3/etc/profile.d/conda.sh
-conda activate rubin
+conda activate guro
 export OPENBLAS_NUM_THREADS=1
 
-cd /gscratch/scrubbed/yoachim/sims_featureScheduler_runs3.4/initial
+cd /gscratch/scrubbed/yoachim/sims_featureScheduler_runs3.4
 
 ## run all the baseline commands in parallel
 module load parallel-20170722
 
-python initial.py
 
-rm maf.sh
-#ls *10yrs.db | xargs -I'{}' echo "glance_dir --db '{}'" > maf.sh
-#ls *10yrs.db | xargs -I'{}' echo "scimaf_dir --db '{}'" >> maf.sh
-## ls *10yrs.db | xargs -I'{}' echo "scimaf_dir --limited --db '{}'" >> maf.sh
-ls *10yrs.db | xargs -I'{}' echo "ddf_dir --db '{}'" >> maf.sh
-#ls *10yrs.db | xargs -I'{}' echo "metadata_dir --db '{}'" >> maf.sh
+# Need to activate for each I guess
+cat run_all.sh | xargs -I'{}' echo "cd /gscratch/scrubbed/yoachim/sims_featureScheduler_runs3.4 ; source setup_env ; {}" > final.sh
 
-#generate_ss 
-#cat ss_script.sh >> maf.sh
+scontrol show hostnames > list_of_nodes
+cpu_count=28
 
-cat maf.sh | parallel -j 28
+cat final.sh | parallel --sshloginfile list_of_nodes -j $cpu_count
+
