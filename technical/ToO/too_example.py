@@ -1501,7 +1501,8 @@ def generate_twilight_near_sun(
     sun_alt_limit=-14.8,
     slew_estimate=4.5,
     moon_distance=30.0,
-    shadow_minutes=60.0,
+    shadow_minutes=30.0,
+    min_alt=20.,
     max_alt=76.0,
     max_elong=60.0,
     az_range=180.0,
@@ -1602,7 +1603,8 @@ def generate_twilight_near_sun(
         )
         bfs.append(
             (
-                bf.AltAzShadowMaskBasisFunction(nside=nside, shadow_minutes=shadow_minutes, max_alt=max_alt),
+                bf.AltAzShadowMaskBasisFunction(nside=nside, shadow_minutes=shadow_minutes, max_alt=max_alt,
+                                                min_alt=min_alt),
                 0,
             )
         )
