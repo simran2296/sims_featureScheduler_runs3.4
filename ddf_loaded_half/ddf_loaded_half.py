@@ -1149,7 +1149,7 @@ def ddf_surveys(
     flush_length=2.,
 ):
     obs_array = generate_ddf_scheduled_obs(season_unobs_frac=season_unobs_frac,
-                                           flush_length=flush_length)
+                                           flush_length=flush_length, sequence_time=30.)
 
     euclid_obs = np.where(
         (obs_array["note"] == "DD:EDFS_b") | (obs_array["note"] == "DD:EDFS_a")

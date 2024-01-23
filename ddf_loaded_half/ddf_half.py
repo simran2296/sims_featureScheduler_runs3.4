@@ -1079,7 +1079,7 @@ def generate_twi_blobs(
 def ddf_surveys(
     detailers=None, season_unobs_frac=0.2, euclid_detailers=None, nside=None
 ):
-    obs_array = generate_ddf_scheduled_obs(season_unobs_frac=season_unobs_frac)
+    obs_array = generate_ddf_scheduled_obs(season_unobs_frac=season_unobs_frac, sequence_time=30.)
 
     euclid_obs = np.where(
         (obs_array["note"] == "DD:EDFS_b") | (obs_array["note"] == "DD:EDFS_a")
