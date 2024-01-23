@@ -9,4 +9,4 @@ changes since v3.3
 
 To do:
 * Swap the zenith mask with the more general shadow mask basis function
-* update to scripted surveys so DDF sequences don't start right before sunrise twilight
+* update to scripted surveys and DDF preschuling so DDF sequences don't start right before sunrise twilight
