@@ -1,3 +1,5 @@
+python baseline/baseline.py --out_dir baseline
+python initial/initial.py --out_dir initial
 python mw/no_magell_roll.py --out_dir mw
 python noroll/noroll.py --out_dir noroll --mjd_plus 0
 python noroll/noroll.py --out_dir noroll --mjd_plus 60
