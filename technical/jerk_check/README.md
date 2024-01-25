@@ -1,0 +1,1 @@
+Yup, looks like turning the jerk on increases the slewtime as expected. 
