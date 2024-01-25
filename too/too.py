@@ -144,6 +144,9 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
         self.hp2fields = np.array([])
         self._hp2fieldsetup(self.fields["RA"], self.fields["dec"])
 
+        # Don't bother with checking if we can run before twilight ends
+        self.before_twi_check = False
+
         # Initialize the list of scripted observations
         self.clear_script()
 
