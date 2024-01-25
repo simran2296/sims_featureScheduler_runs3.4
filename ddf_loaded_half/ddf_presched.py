@@ -170,6 +170,7 @@ def optimize_ddf_times(
     ddf_RA,
     ddf_grid,
     sun_limit=-18,
+    sequence_time=60.,
     airmass_limit=2.5,
     sky_limit=None,
     g_depth_limit=23.5,
@@ -187,6 +188,7 @@ def optimize_ddf_times(
         7.2 month observing season if season_unobs_frac = 0.2 (shaves 20% off each end of the full year)
     """
     sun_limit = np.radians(sun_limit)
+    sequence_time = sequence_time / 60.0 / 24.0  # to days
 
     # XXX-- double check that I got this right
     ack = ddf_grid["sun_alt"][0:-1] * ddf_grid["sun_alt"][1:]
@@ -198,6 +200,12 @@ def optimize_ddf_times(
     # set a sun, airmass, sky masks
     sun_mask = np.ones(ngrid, dtype=int)
     sun_mask[np.where(ddf_grid["sun_alt"] >= sun_limit)] = 0
+
+    # expand sun mask backwards by the sequence time.
+    n_back = np.ceil(sequence_time / (ddf_grid["mjd"][1] - ddf_grid["mjd"][0])).astype(int)
+    shadow_indx = np.where(sun_mask == 0)[0] - n_back
+    shadow_indx = shadow_indx[np.where(shadow_indx >= 0)]
+    sun_mask[shadow_indx] = 0
 
     airmass_mask = np.ones(ngrid, dtype=int)
     airmass_mask[np.where(ddf_grid["%s_airmass" % ddf_name] >= airmass_limit)] = 0
@@ -269,7 +277,8 @@ def generate_ddf_scheduled_obs(
     filters="ugrizy",
     nsnaps=[1, 2, 2, 2, 2, 2],
     mjd_start=None,
-    survey_length=10.
+    survey_length=10.,
+    sequence_time=60.,
 ):
     """
 
@@ -342,6 +351,7 @@ def generate_ddf_scheduled_obs(
             ddfs[ddf_name][0],
             ddf_grid,
             season_unobs_frac=season_unobs_frac,
+            sequence_time=sequence_time,
         )[0]
         for mjd in mjds:
             for filtername, nvis, nexp in zip(filters, nvis_master, nsnaps):

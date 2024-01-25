@@ -124,6 +124,7 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
         self.dither = dither
         self.id_start = id_start
         self.detailers = detailers
+        self.last_mjd = -1
 
         self.camera = camera
         # Load the OpSim field tesselation and map healpix to fields
@@ -309,14 +310,9 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
 
     def generate_observations(self, conditions):
         observations = self.generate_observations_rough(conditions)
-        if np.min(np.concatenate(observations)["RA"]) < 0:
-            import pdb ; pdb.set_trace()
 
         for detailer in self.detailers:
             observations = detailer(observations, conditions)
-
-        if np.min(np.concatenate(observations)["RA"]) < 0:
-            import pdb ; pdb.set_trace()
 
         return observations
 
@@ -1516,7 +1512,7 @@ def generate_twilight_near_sun(
     sun_alt_limit=-14.8,
     slew_estimate=4.5,
     moon_distance=30.0,
-    shadow_minutes=30.0,
+    shadow_minutes=0,
     min_alt=20.,
     max_alt=76.0,
     max_elong=60.0,
