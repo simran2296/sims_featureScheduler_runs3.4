@@ -1510,7 +1510,7 @@ def example_scheduler(args):
             scheduler,
             survey_length=survey_length,
             verbose=verbose,
-            filename=os.path.join(out_dir, fileroot + "%iyrs.db" % years),
+            filename=os.path.join(fileroot + "%iyrs.db" % years),
             extra_info=extra_info,
             nside=nside,
             illum_limit=illum_limit,

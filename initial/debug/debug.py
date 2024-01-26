@@ -1481,7 +1481,7 @@ def example_scheduler(args):
             scheduler,
             survey_length=survey_length,
             verbose=verbose,
-            fileroot=os.path.join(out_dir, fileroot),
+            fileroot=os.path.join(fileroot),
             extra_info=extra_info,
             nside=nside,
             illum_limit=illum_limit,
