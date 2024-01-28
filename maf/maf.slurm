@@ -66,7 +66,7 @@ generate_ss
 cat ss_script.sh >> maf.sh
 
 # Need to activate for each I guess
-cat maf.sh | xargs -I'{}' echo "cd /gscratch/scrubbed/yoachim/sims_featureScheduler_runs3.3/maf ; source setup_env ; {}" > maf_final.sh
+cat maf.sh | xargs -I'{}' echo "cd /gscratch/scrubbed/yoachim/sims_featureScheduler_runs3.4/maf ; source setup_env ; {}" > maf_final.sh
 
 scontrol show hostnames > list_of_nodes
 cpu_count=28
