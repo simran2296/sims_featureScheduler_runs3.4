@@ -12,7 +12,7 @@ if __name__ == "__main__":
 
     scheduler = example_scheduler(args)
 
-    observation_id = 1359637-3
+    observation_id = 1359637-4
 
     #observation_id = 5000
 
@@ -30,3 +30,6 @@ if __name__ == "__main__":
 
     obs = np.concatenate(scheduler.survey_lists[2][4].generate_observations(conditions))
     import pdb ; pdb.set_trace()
+
+    sur = scheduler.survey_lists[2][4]
+    
