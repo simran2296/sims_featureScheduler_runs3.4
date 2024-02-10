@@ -2,7 +2,7 @@
 
 ## Job Name
 
-#SBATCH --job-name=too3.4
+#SBATCH --job-name=too_ig3.4
 
 ## Allocation Definition
 
@@ -33,7 +33,7 @@
 
 ## Specify the working directory for this job
 
-#SBATCH --chdir=/gscratch/scrubbed/yoachim/sims_featureScheduler_runs3.4/too
+#SBATCH --chdir=/gscratch/scrubbed/yoachim/sims_featureScheduler_runs3.4/too_ignore
 
 ##turn on e-mail notification
 
@@ -50,12 +50,12 @@ source ~/anaconda3/etc/profile.d/conda.sh
 conda activate rubin
 export OPENBLAS_NUM_THREADS=1
 
-cd /gscratch/scrubbed/yoachim/sims_featureScheduler_runs3.4/too
+cd /gscratch/scrubbed/yoachim/sims_featureScheduler_runs3.4/too_ignore
 
 ## run all the baseline commands in parallel
 module load parallel-20170722
 
-cat too.sh | parallel -j 28
+cat too_ignore.sh | parallel -j 28
 
 rm maf.sh
 ls *10yrs.db | xargs -I'{}' echo "glance_dir --db '{}'" > maf.sh
