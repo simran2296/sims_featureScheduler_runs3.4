@@ -223,8 +223,7 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
                 self.night = conditions.night + 0
 
             field_ids = np.unique(self.hp2fields[hpid_to_observe])
-
-            # Put the fields in a good order. Skipping dither positions for now.
+            # Put the fields in a good order.
             better_order = order_observations(
                 self.fields["RA"][field_ids], self.fields["dec"][field_ids]
             )
