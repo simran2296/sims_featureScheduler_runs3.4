@@ -313,8 +313,9 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
     def generate_observations(self, conditions):
         observations = self.generate_observations_rough(conditions)
 
-        for detailer in self.detailers:
-            observations = detailer(observations, conditions)
+        if len(observations) > 0:
+            for detailer in self.detailers:
+                observations = detailer(observations, conditions)
 
         return observations
 
