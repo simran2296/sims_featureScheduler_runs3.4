@@ -402,6 +402,8 @@ def generate_events(
 
     radius = np.radians(radius_possible)[indx]
 
+    event_table["radius"] = radius
+
     draw = np.random.uniform(size=n_events)
     no_intur = draw > frac_inter
 
