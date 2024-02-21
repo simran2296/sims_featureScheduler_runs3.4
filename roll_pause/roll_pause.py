@@ -104,15 +104,20 @@ def make_rolling_footprints(
     # After n_cycles, just go to no-rolling for 6 years.
     end = [1.0] * n_constant_end
 
-    rolling = [up] + [down] * (nslice - 1)
-    rolling = rolling * n_cycles
+    rolling1 = [up] + [down] * (nslice - 1)
+    rolling1 = rolling1 * n_cycles
+    rolling1 = np.roll(rolling1, order_roll).tolist()
 
-    rolling = np.roll(rolling, order_roll).tolist()
+    rolling2 = [down] + [up] * (nslice - 1)
+    rolling2 = rolling2 * n_cycles
+    rolling2 = np.roll(rolling2, order_roll).tolist()
 
     if insert_const is not None:
-        rolling.insert(insert_const, 1)
+        rolling1.insert(insert_const, 1)
+        rolling2.insert(insert_const, 1)
 
-    all_slopes = [start + np.roll(rolling, i).tolist() + end for i in range(nslice)]
+    all_slopes = [start+rolling1+end, start+rolling2+end]
+
     fp_non_wfd = Footprint(mjd_start, sun_ra_start=sun_ra_start, nside=nside)
     rolling_footprints = []
     for i in range(nslice):
