@@ -1565,7 +1565,7 @@ def example_scheduler(args):
         nside=nside,
         wfd_indx=wfd_indx,
         order_roll=1,
-        n_cycles=4,
+        n_cycles=3,
     )
 
     gaps_night_pattern = [True] + [False] * nights_off
