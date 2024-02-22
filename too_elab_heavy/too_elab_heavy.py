@@ -383,7 +383,7 @@ def generate_events(
     n_events = int(np.ceil(survey_length / 365.25 * rate))
 
     names = ["mjd_start", "ra", "dec", "expires", "radius"]
-    types = [float] * 4
+    types = [float] * 5
     event_table = np.zeros(n_events, dtype=list(zip(names, types)))
 
     event_table["mjd_start"] = (
