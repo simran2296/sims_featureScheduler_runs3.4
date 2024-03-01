@@ -59,8 +59,9 @@ cat ddf_acor.sh  | xargs -I'{}' echo "cd /gscratch/scrubbed/yoachim/sims_feature
 scontrol show hostnames > list_of_nodes
 cpu_count=28
 
+echo "starting sims"
 cat final.sh | parallel --sshloginfile list_of_nodes -j $cpu_count
-
+echo "finished sims"
 
 rm maf.sh
 ls *10yrs.db | xargs -I'{}' echo "glance_dir --db '{}'" > maf.sh
