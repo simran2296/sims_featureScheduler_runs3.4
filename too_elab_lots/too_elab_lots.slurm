@@ -50,7 +50,7 @@ source ~/anaconda3/etc/profile.d/conda.sh
 conda activate rubin
 export OPENBLAS_NUM_THREADS=1
 
-cd /gscratch/scrubbed/yoachim/sims_featureScheduler_runs3.4/too_elab
+cd /gscratch/scrubbed/yoachim/sims_featureScheduler_runs3.4/too_elab_lots
 
 ## run all the baseline commands in parallel
 module load parallel-20170722
