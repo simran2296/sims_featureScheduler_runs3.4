@@ -346,9 +346,9 @@ def order_observations(RA, dec):
     # time between points rather than angular distance.
     pointing_x, pointing_y = gnomonic_project_toxy(RA, dec, mid_ra, mid_dec)
     # Round off positions so that we ensure identical cross-platform performance
-    scale = 1e6
-    pointing_x = np.round(pointing_x * scale).astype(int)
-    pointing_y = np.round(pointing_y * scale).astype(int)
+    #scale = 1e6
+    #pointing_x = np.round(pointing_x * scale).astype(int)
+    #pointing_y = np.round(pointing_y * scale).astype(int)
     # Now I have a bunch of x,y pointings. Drop into TSP solver to get an effiencent route
     towns = np.vstack((pointing_x, pointing_y)).T
     # Leaving optimize=False for speed. The optimization step doesn't usually improve much.
