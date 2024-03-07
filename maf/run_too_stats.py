@@ -98,6 +98,5 @@ if __name__ == "__main__":
         event_tables.append(too_events)
 
     # Concat all the event tables together and write it out.
-
-final_df = pd.concat(event_tables)
-final_df.to_hdf('too_table.h5', 'too')
+    final_df = pd.concat(event_tables)
+    final_df.to_hdf('too_table.h5', 'too')
