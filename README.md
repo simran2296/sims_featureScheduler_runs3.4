@@ -30,6 +30,8 @@ noroll : A baseline without any rolling cadence.
 
 roll_pause/roll_pause2 : Tests to try and make more uniform surveys at release dates.
 
+roll_uniform : Another test at getting uniform surveys at years 1, 4, 7, 10.
+
 too : Updating ToO simulations from earlier verions
 
 too_ignore : Like too sims, but the main survey ignores ToO observations (i.e., ToO observations don't get to count twice.)
