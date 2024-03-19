@@ -55,6 +55,8 @@ cd /gscratch/scrubbed/yoachim/sims_featureScheduler_runs3.4/too_elab_2yr
 ## run all the baseline commands in parallel
 module load parallel-20170722
 
+cat too_elab.sh | parallel -j 28
+
 #cat too_elab.sh  | xargs -I'{}' echo "cd /gscratch/scrubbed/yoachim/sims_featureScheduler_runs3.4/too_elab ; source setup_env ; {}" > final.sh
 #scontrol show hostnames > list_of_nodes
 #cpu_count=28
