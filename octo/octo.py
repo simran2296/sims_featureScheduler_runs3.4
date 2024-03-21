@@ -27,9 +27,7 @@ from rubin_scheduler.scheduler.surveys import (
 from rubin_scheduler.scheduler.utils import (
     ConstantFootprint,
     EuclidOverlapFootprint,
-    Footprint,
-    Footprints,
-    StepSlopes
+    make_rolling_footprints,
 )
 from rubin_scheduler.site_models import Almanac
 from rubin_scheduler.utils import _hpid2_ra_dec
@@ -38,131 +36,6 @@ from rubin_scheduler.utils import _hpid2_ra_dec
 iers.conf.auto_download = False
 # XXX--note this line probably shouldn't be in production
 iers.conf.auto_max_age = None
-
-
-def make_rolling_footprints(
-    fp_hp=None,
-    mjd_start=60218.0,
-    sun_ra_start=3.27717639,
-    nslice=2,
-    scale=0.8,
-    nside=32,
-    wfd_indx=None,
-    order_roll=0,
-    n_cycles=1,
-    n_constant_start=3,
-    n_constant_end=6,
-):
-    """
-    Generate rolling footprints
-
-    Parameters
-    ----------
-    fp_hp : dict-like
-        A dict with filtername keys and HEALpix map values
-    mjd_start : `float`
-        The starting date of the survey.
-    sun_ra_start : `float`
-        The RA of the sun at the start of the survey
-    nslice : `int`
-        How much to slice the sky up. Can be 2, 3, 4, or 6.
-    scale : `float`
-        The strength of the rolling, value of 1 is full power rolling.
-        Zero is no rolling.
-    wfd_indx : array of ints
-        The indices of the HEALpix map that are to be included in the rolling.
-    order_roll : `int`
-        Change the order of when bands roll. Default 0.
-    n_cycles : `int`
-        Number of complete rolling cycles to attempt. If None, defaults to 3
-        full cycles for nslice=2, 2 cycles for nslice=3 or 4, and 1 cycle for
-        nslice=6.
-    n_constant_start : `int`
-        The number of constant non-rolling seasons to start with.
-        Anything less than 3 results in rolling starting before the
-        entire sky has had a constant year.
-    n_constant_end : `int`
-        The number of constant seasons to end the survey with. Defaults to 6.
-
-    Returns
-    -------
-    Footprints object
-    """
-
-    nc_default = {2: 3, 3: 2, 4: 2, 6: 1}
-    if n_cycles is None:
-        n_cycles = nc_default[nslice]
-
-    hp_footprints = fp_hp
-
-    down = 1.0 - scale
-    up = nslice - down * (nslice - 1)
-
-    start = [1.0] * n_constant_start
-    # After n_cycles, just go to no-rolling for 6 years.
-    end = [1.0] * n_constant_end
-
-    rolling = [up] + [down] * (nslice - 1)
-    rolling = rolling * n_cycles
-
-    rolling = np.roll(rolling, order_roll).tolist()
-
-    all_slopes = [start + np.roll(rolling, i).tolist() + end for i in range(nslice)]
-
-    fp_non_wfd = Footprint(mjd_start, sun_ra_start=sun_ra_start, nside=nside)
-    rolling_footprints = []
-    for i in range(nslice):
-        step_func = StepSlopes(rise=all_slopes[i])
-        rolling_footprints.append(
-            Footprint(mjd_start, sun_ra_start=sun_ra_start, step_func=step_func, nside=nside)
-        )
-
-    wfd = hp_footprints["r"] * 0
-    if wfd_indx is None:
-        wfd_indx = np.where(hp_footprints["r"] == 1)[0]
-
-    wfd[wfd_indx] = 1
-    non_wfd_indx = np.where(wfd == 0)[0]
-
-    split_wfd_indices = slice_wfd_indx(hp_footprints, nslice=nslice, wfd_indx=wfd_indx)
-
-    for key in hp_footprints:
-        temp = hp_footprints[key] + 0
-        temp[wfd_indx] = 0
-        fp_non_wfd.set_footprint(key, temp)
-
-        for i in range(nslice):
-            # make a copy of the current filter
-            temp = hp_footprints[key] + 0
-            # Set the non-rolling area to zero
-            temp[non_wfd_indx] = 0
-
-            indx = split_wfd_indices[i]
-            # invert the indices
-            ze = temp * 0
-            ze[indx] = 1
-            temp = temp * ze
-            rolling_footprints[i].set_footprint(key, temp)
-
-    result = Footprints([fp_non_wfd] + rolling_footprints)
-    return result
-
-
-def slice_wfd_indx(target_map, nslice=2, wfd_indx=None):
-    """
-    simple map split
-    """
-
-    wfd = target_map["r"] * 0
-    if wfd_indx is None:
-        wfd_indx = np.where(target_map["r"] == 1)[0]
-    wfd[wfd_indx] = 1
-    wfd_accum = np.cumsum(wfd)
-    split_wfd_indices = np.floor(np.max(wfd_accum) / nslice * (np.arange(nslice) + 1)).astype(int)
-    split_wfd_indices = split_wfd_indices.tolist()
-    split_wfd_indices = [0] + split_wfd_indices
-
-    return split_wfd_indices
 
 
 def standard_bf(
@@ -636,7 +509,7 @@ def gen_greedy_surveys(
     footprint_weight=0.75,
     slewtime_weight=3.0,
     stayfilter_weight=100.0,
-    repeat_weight=0.,
+    repeat_weight=-1.0,
     footprints=None,
 ):
     """
@@ -778,7 +651,7 @@ def generate_blobs(
     good_seeing={"g": 3, "r": 3, "i": 3},
     good_seeing_weight=3.0,
     mjd_start=1,
-    repeat_weight=0.,
+    repeat_weight=-20,
 ):
     """
     Generate surveys that take observations in blobs.
@@ -1017,7 +890,7 @@ def generate_twi_blobs(
     repeat_night_weight=None,
     wfd_footprint=None,
     scheduled_respect=15.0,
-    repeat_weight=0.,
+    repeat_weight=-1.0,
     night_pattern=None,
 ):
     """
