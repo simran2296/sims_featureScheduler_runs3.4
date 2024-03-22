@@ -651,7 +651,7 @@ def generate_blobs(
     good_seeing={"g": 3, "r": 3, "i": 3},
     good_seeing_weight=3.0,
     mjd_start=1,
-    repeat_weight=-20,
+    repeat_weight=0.,
 ):
     """
     Generate surveys that take observations in blobs.
@@ -890,7 +890,7 @@ def generate_twi_blobs(
     repeat_night_weight=None,
     wfd_footprint=None,
     scheduled_respect=15.0,
-    repeat_weight=-1.0,
+    repeat_weight=0.,
     night_pattern=None,
 ):
     """
