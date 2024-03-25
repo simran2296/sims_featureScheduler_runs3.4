@@ -60,7 +60,7 @@ def gen_table(db_file, out_dir):
     bg.run_all()
 
     counts_df = too_obs.value_counts()
-    arr = np.zeros(len(too_events), dtype=list(zip(['t1', 't2', 't4', 't24', 't48'], [int, int, int, int, int])))
+    arr = np.zeros(len(too_events), dtype=list(zip(['t0', 't1', 't2', 't4', 't24', 't48'], [int, int, int, int, int])))
     for label, val in zip(counts_df.index, counts_df.values):
         label = label[0].replace('ToO, ', '')
         i, t = label.split('_')
