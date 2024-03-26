@@ -27,11 +27,7 @@ from rubin_scheduler.scheduler.surveys import (
 from rubin_scheduler.scheduler.utils import (
     ConstantFootprint,
     EuclidOverlapFootprint,
-    BasePixelEvolution,
-    Footprint,
-    Footprints,
-    slice_quad_galactic_cut,
-    StepSlopes,
+    make_rolling_footprints,
 )
 from rubin_scheduler.site_models import Almanac
 from rubin_scheduler.utils import _hpid2_ra_dec
@@ -42,123 +38,20 @@ iers.conf.auto_download = False
 iers.conf.auto_max_age = None
 
 
+class FootprintMask(bf.BaseBasisFunction):
+    def __init__(self, footprint_mask=None):
+        super().__init__()
+        self.footprint_mask = footprint_mask
 
-def make_rolling_footprints(
-    fp_hp=None,
-    mjd_start=60218.0,
-    sun_ra_start=3.27717639,
-    nslice=2,
-    scale=0.8,
-    nside=32,
-    wfd_indx=None,
-    order_roll=0,
-    n_cycles=None,
-    n_constant_start=3,
-    n_constant_end=6,
-):
-    """Modified to do funky things with u in the first year
-    
-    """
-
-    nc_default = {2: 3, 3: 2, 4: 2, 6: 1}
-    if n_cycles is None:
-        n_cycles = nc_default[nslice]
-
-    hp_footprints = fp_hp
-
-    down = 1.0 - scale
-    up = nslice - down * (nslice - 1)
-
-    start = [1.0] * n_constant_start
-    # After n_cycles, just go to no-rolling for 6 years.
-    end = [1.0] * n_constant_end
-
-    rolling = [up] + [down] * (nslice - 1)
-    rolling = rolling * n_cycles
-
-    rolling = np.roll(rolling, order_roll).tolist()
-
-    all_slopes = [start + np.roll(rolling, i).tolist() + end for i in range(nslice)]
-
-    fp_non_wfd = Footprint(mjd_start, sun_ra_start=sun_ra_start, nside=nside)
-    rolling_footprints = []
-    for i in range(nslice):
-        step_func = StepSlopes(rise=all_slopes[i])
-        rolling_footprints.append(
-            Footprint(mjd_start, sun_ra_start=sun_ra_start, step_func=step_func, nside=nside)
-        )
-    rolling_footprints_u = []
-
-    for i in range(nslice):
-        step_func = StepSlopesU(rise=all_slopes[i])
-        rolling_footprints_u.append(
-            Footprint(mjd_start, sun_ra_start=sun_ra_start, step_func=step_func, nside=nside)
-        )
-
-    wfd = hp_footprints["r"] * 0
-    if wfd_indx is None:
-        wfd_indx = np.where(hp_footprints["r"] == 1)[0]
-
-    wfd[wfd_indx] = 1
-    non_wfd_indx = np.where(wfd == 0)[0]
-
-    split_wfd_indices = slice_quad_galactic_cut(hp_footprints, nslice=nslice, wfd_indx=wfd_indx)
-
-    for key in hp_footprints:
-        temp = hp_footprints[key] + 0
-        temp[wfd_indx] = 0
-        fp_non_wfd.set_footprint(key, temp)
-
-        for i in range(nslice):
-            # make a copy of the current filter
-            temp = hp_footprints[key] + 0
-            # Set the non-rolling area to zero
-            temp[non_wfd_indx] = 0
-
-            indx = split_wfd_indices[i]
-            # invert the indices
-            ze = temp * 0
-            ze[indx] = 1
-            temp = temp * ze
-            if key == 'u':
-                rolling_footprints_u[i].set_footprint(key, temp)
-            else:
-                rolling_footprints[i].set_footprint(key, temp)
-
-    import pdb ; pdb.set_trace()
-    result = Footprints([fp_non_wfd] + rolling_footprints)
-    return result
+    def __call__(self, conditions, indx=None):
+        return self.footprint_mask
 
 
-class StepSlopesU(BasePixelEvolution):
-    """Add an extra rise in.
-
-    Parameters
-    ----------
-    period : `float`
-        The period to use - typically should be a year.
-    rise : np.array-like
-        How much the curve should rise each period.
-    """
-
-    def __call__(self, mjd_in, phase):
-        steps = np.array(self.rise)
-        t = mjd_in + phase - self.t_start
-        season = np.floor(t / (self.period))
-        season = season.astype(int)
-        plateus = np.cumsum(steps) - steps[0]
-        result = plateus[season]
-        tphased = t % self.period
-        step_area = np.where(tphased > self.period / 2.0)[0]
-        result[step_area] += (
-            (tphased[step_area] - self.period / 2) * steps[season + 1][step_area] / (0.5 * self.period)
-        )
-
-        # XXX addition so it starts as if a year behind
-        result += 1.
-
-        result[np.where(t < 0)] = 0
-
+class FirstYearOnlyBasisFunction(bf.BaseBasisFunction):
+    def check_feasibility(self, conditions):
+        result = True
+        if conditions.night > 365:
+            result = False
         return result
 
 
@@ -746,6 +639,200 @@ def gen_greedy_surveys(
     return surveys
 
 
+def generate_u_blobs(nside,
+        nexp=1,
+        exptime=30.0,
+        filter1s=["u"],
+        filter2s=["u"],
+        pair_time=33.0,
+        camera_rot_limits=[-80.0, 80.0],
+        n_obs_template=None,
+        season=300.0,
+        season_start_hour=-4.0,
+        season_end_hour=2.0,
+        shadow_minutes=60.0,
+        max_alt=76.0,
+        moon_distance=30.0,
+        ignore_obs=["DD", "twilight_near_sun"],
+        m5_weight=6.0,
+        footprint_weight=1.5,
+        slewtime_weight=3.0,
+        stayfilter_weight=3.0,
+        template_weight=12.0,
+        u_template_weight=50.0,
+        g_template_weight=50.0,
+        footprints=None,
+        u_nexp1=True,
+        scheduled_respect=45.0,
+        good_seeing={"g": 3, "r": 3, "i": 3},
+        good_seeing_weight=3.0,
+        mjd_start=1,
+        repeat_weight=-20,
+        footprint_mask=None):
+    """ Some blobs to get extra u in year 1 in the north.
+    """
+
+    BlobSurvey_params = {
+        "slew_approx": 7.5,
+        "filter_change_approx": 140.0,
+        "read_approx": 2.0,
+        "min_pair_time": 15.0,
+        "search_radius": 30.0,
+        "alt_max": 85.0,
+        "az_range": None,
+        "flush_time": 30.0,
+        "smoothing_kernel": None,
+        "nside": nside,
+        "seed": 42,
+        "dither": True,
+        "twilight_scale": False,
+    }
+
+    if n_obs_template is None:
+        n_obs_template = {"u": 3, "g": 3, "r": 3, "i": 3, "z": 3, "y": 3}
+
+    surveys = []
+
+    times_needed = [pair_time, pair_time * 2]
+    for filtername, filtername2 in zip(filter1s, filter2s):
+        detailer_list = []
+        detailer_list.append(
+            detailers.CameraRotDetailer(
+                min_rot=np.min(camera_rot_limits), max_rot=np.max(camera_rot_limits)
+            )
+        )
+        detailer_list.append(detailers.Rottep2RotspDesiredDetailer())
+        detailer_list.append(detailers.CloseAltDetailer())
+        detailer_list.append(detailers.FlushForSchedDetailer())
+        # List to hold tuples of (basis_function_object, weight)
+        bfs = []
+
+        bfs.extend(
+            standard_bf(
+                nside,
+                filtername=filtername,
+                filtername2=filtername2,
+                m5_weight=m5_weight,
+                footprint_weight=footprint_weight,
+                slewtime_weight=slewtime_weight,
+                stayfilter_weight=stayfilter_weight,
+                template_weight=template_weight,
+                u_template_weight=u_template_weight,
+                g_template_weight=g_template_weight,
+                footprints=footprints,
+                n_obs_template=n_obs_template,
+                season=season,
+                season_start_hour=season_start_hour,
+                season_end_hour=season_end_hour,
+            )
+        )
+
+        bfs.append(
+            (
+                bf.VisitRepeatBasisFunction(
+                    gap_min=0, gap_max=3 * 60.0, filtername=None, nside=nside, npairs=20
+                ),
+                repeat_weight,
+            )
+        )
+
+        # Insert things for getting good seeing templates
+        if filtername2 is not None:
+            if filtername in list(good_seeing.keys()):
+                bfs.append(
+                    (
+                        bf.NGoodSeeingBasisFunction(
+                            filtername=filtername,
+                            nside=nside,
+                            mjd_start=mjd_start,
+                            footprint=footprints.get_footprint(filtername),
+                            n_obs_desired=good_seeing[filtername],
+                        ),
+                        good_seeing_weight,
+                    )
+                )
+            if filtername2 in list(good_seeing.keys()):
+                bfs.append(
+                    (
+                        bf.NGoodSeeingBasisFunction(
+                            filtername=filtername2,
+                            nside=nside,
+                            mjd_start=mjd_start,
+                            footprint=footprints.get_footprint(filtername2),
+                            n_obs_desired=good_seeing[filtername2],
+                        ),
+                        good_seeing_weight,
+                    )
+                )
+        else:
+            if filtername in list(good_seeing.keys()):
+                bfs.append(
+                    (
+                        bf.NGoodSeeingBasisFunction(
+                            filtername=filtername,
+                            nside=nside,
+                            mjd_start=mjd_start,
+                            footprint=footprints.get_footprint(filtername),
+                            n_obs_desired=good_seeing[filtername],
+                        ),
+                        good_seeing_weight,
+                    )
+                )
+        # Make sure we respect scheduled observations
+        bfs.append((bf.TimeToScheduledBasisFunction(time_needed=scheduled_respect), 0))
+        # Masks, give these 0 weight
+        bfs.append(
+            (
+                bf.AltAzShadowMaskBasisFunction(
+                    nside=nside,
+                    shadow_minutes=shadow_minutes,
+                    max_alt=max_alt,
+                ),
+                0.0,
+            )
+        )
+        if filtername2 is None:
+            time_needed = times_needed[0]
+        else:
+            time_needed = times_needed[1]
+        bfs.append((bf.TimeToTwilightBasisFunction(time_needed=time_needed), 0.0))
+        bfs.append((bf.NotTwilightBasisFunction(), 0.0))
+
+        bfs.append((FirstYearOnlyBasisFunction(), 0.0))
+        bfs.append((FootprintMask(footprint_mask), 0.0))
+
+        # unpack the basis functions and weights
+        weights = [val[1] for val in bfs]
+        basis_functions = [val[0] for val in bfs]
+        if filtername2 is None:
+            survey_name = "early_u_%i, %s" % (pair_time, filtername)
+        else:
+            survey_name = "early_u_%i, %s%s" % (pair_time, filtername, filtername2)
+        if filtername2 is not None:
+            detailer_list.append(detailers.TakeAsPairsDetailer(filtername=filtername2))
+
+        if u_nexp1:
+            detailer_list.append(detailers.FilterNexp(filtername="u", nexp=1))
+        surveys.append(
+            BlobSurvey(
+                basis_functions,
+                weights,
+                filtername1=filtername,
+                filtername2=filtername2,
+                exptime=exptime,
+                ideal_pair_time=pair_time,
+                survey_note=survey_name,
+                ignore_obs=ignore_obs,
+                nexp=nexp,
+                detailers=detailer_list,
+                min_area=100.,
+                **BlobSurvey_params
+            )
+        )
+
+    return surveys
+
+
 def generate_blobs(
     nside,
     nexp=2,
@@ -761,7 +848,7 @@ def generate_blobs(
     shadow_minutes=60.0,
     max_alt=76.0,
     moon_distance=30.0,
-    ignore_obs=["DD", "twilight_near_sun"],
+    ignore_obs=["DD", "twilight_near_sun", 'early_u'],
     m5_weight=6.0,
     footprint_weight=1.5,
     slewtime_weight=3.0,
@@ -1004,7 +1091,7 @@ def generate_twi_blobs(
     shadow_minutes=60.0,
     max_alt=76.0,
     moon_distance=30.0,
-    ignore_obs=["DD", "twilight_near_sun"],
+    ignore_obs=["DD", "twilight_near_sun", "early_ss"],
     m5_weight=6.0,
     footprint_weight=1.5,
     slewtime_weight=3.0,
@@ -1636,7 +1723,35 @@ def example_scheduler(args):
         repeat_night_weight=repeat_night_weight,
         night_pattern=reverse_neo_night_pattern,
     )
-    surveys = [ddfs, long_gaps, blobs, twi_blobs, neo, greedy]
+
+    ra, dec = _hpid2_ra_dec(nside, np.arange(hp.nside2npix(nside)))
+
+    to_mask = np.where((labels != 'lowdust') | (dec < np.radians(-20.)))[0]
+    footprint_mask = footprints_hp_array["r"] * 0
+    footprint_mask[to_mask] = np.nan
+
+    footprints_hp["u"] *= 2.
+
+    u_footprints = make_rolling_footprints(
+        fp_hp=footprints_hp,
+        mjd_start=mjd_start,
+        sun_ra_start=sun_ra_start,
+        nslice=nslice,
+        scale=rolling_scale,
+        nside=nside,
+        wfd_indx=wfd_indx,
+        order_roll=1,
+        n_cycles=4,
+    )
+    
+    ss_blobs = generate_u_blobs(nside,
+                                footprints=u_footprints,
+                                mjd_start=mjd_start,
+                                filter1s=['g', 'r', 'i', 'z'],
+                                filter2s=[None, None, None, None],
+                                footprint_mask=footprint_mask)
+
+    surveys = [ddfs, long_gaps, blobs+ss_blobs, twi_blobs, neo, greedy]
 
     scheduler = CoreScheduler(surveys, nside=nside)
 
