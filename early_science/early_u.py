@@ -640,10 +640,10 @@ def gen_greedy_surveys(
 
 
 def generate_u_blobs(nside,
-        nexp=1,
+        nexp=2,
         exptime=30.0,
-        filter1s=["u"],
-        filter2s=["u"],
+        filter1s=["u", "u"],
+        filter2s=["g", ""],
         pair_time=33.0,
         camera_rot_limits=[-80.0, 80.0],
         n_obs_template=None,
@@ -1744,14 +1744,14 @@ def example_scheduler(args):
         n_cycles=4,
     )
     
-    ss_blobs = generate_u_blobs(nside,
-                                footprints=u_footprints,
-                                mjd_start=mjd_start,
-                                filter1s=['g', 'r', 'i', 'z'],
-                                filter2s=[None, None, None, None],
-                                footprint_mask=footprint_mask)
+    u_blobs = generate_u_blobs(nside,
+                               footprints=u_footprints,
+                               mjd_start=mjd_start,
+                               filter1s=['u'],
+                               filter2s=[None],
+                               footprint_mask=footprint_mask)
 
-    surveys = [ddfs, long_gaps, blobs+ss_blobs, twi_blobs, neo, greedy]
+    surveys = [ddfs, long_gaps, u_blobs + blobs, twi_blobs, neo, greedy]
 
     scheduler = CoreScheduler(surveys, nside=nside)
 

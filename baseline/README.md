@@ -9,3 +9,12 @@ changes since v3.3
 * Swap the zenith mask with the more general shadow mask basis function
 * update to scripted surveys and DDF preschuling so DDF sequences don't start right before sunrise twilight
 * Update to traveling salesman solver to ensure cross-platform repeatability.
+
+
+notes on MAF runtime
+real    46m56.927s
+real    135m42.152s
+real    313m58.593s
+real    869m7.487s
+
+So the DDFs and Science would be good to break up and run more parallel.
