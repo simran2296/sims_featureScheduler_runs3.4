@@ -1522,7 +1522,7 @@ def generate_twilight_near_sun(
     return surveys
 
 
-def set_run_info(dbroot=None, file_end="v3.4_", out_dir="."):
+def set_run_info(dbroot=None, fp_extra=1., file_end="v3.4_", out_dir="."):
     """Gather versions of software used to record"""
     extra_info = {}
     exec_command = ""
@@ -1549,6 +1549,8 @@ def set_run_info(dbroot=None, file_end="v3.4_", out_dir="."):
         fileroot = os.path.basename(sys.argv[0]).replace(".py", "") + "_"
     else:
         fileroot = dbroot + "_"
+
+    fileroot += "fpextra%.1f_" % fp_extra
     fileroot = os.path.join(out_dir, fileroot + file_end)
     return fileroot, extra_info
 
@@ -1601,6 +1603,7 @@ def example_scheduler(args):
     neo_elong_req = args.neo_elong_req
     neo_area_req = args.neo_area_req
     nside = args.nside
+    fp_extra = args.fp_extra
 
     # Be sure to also update and regenerate DDF grid save file if changing mjd_start
     mjd_start = 60796.0
@@ -1609,7 +1612,7 @@ def example_scheduler(args):
     camera_ddf_rot_limit = 75.0  # degrees
 
     fileroot, extra_info = set_run_info(
-        dbroot=dbroot, file_end="v3.4_", out_dir=out_dir
+        dbroot=dbroot, file_end="v3.4_", out_dir=out_dir, fp_extra=fp_extra,
     )
 
     pattern_dict = {
@@ -1730,7 +1733,7 @@ def example_scheduler(args):
     footprint_mask = footprints_hp_array["r"] * 0
     footprint_mask[to_mask] = np.nan
 
-    footprints_hp["u"] *= 2.
+    footprints_hp["u"] *= fp_extra
 
     u_footprints = make_rolling_footprints(
         fp_hp=footprints_hp,
@@ -1860,6 +1863,11 @@ def sched_argparser():
         default=32,
         help="Nside should be set to default (32) except for tests.",
     )
+    parser.add_argument(
+                        "--fp_extra",
+                        type=float,
+                        default=1.,
+                        help="How much to scale up the NES footprint.")
 
     return parser
 
