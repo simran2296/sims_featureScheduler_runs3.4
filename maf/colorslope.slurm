@@ -58,7 +58,7 @@ module load parallel-20170722
 rm maf.sh
 
 
-ls *10yrs.db | xargs -I'{}' echo "python run_cs --db '{}'" > maf.sh
+ls *10yrs.db | xargs -I'{}' echo "python run_cs.py --db '{}'" > maf.sh
 
 #ls *10yrs.db | xargs -I'{}' echo "scimaf_dir --limited --db '{}'" > maf.sh
 #ls *10yrs.db | xargs -I'{}' echo "ddf_dir --db '{}'" >> maf.sh
