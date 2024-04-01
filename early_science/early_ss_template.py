@@ -1731,8 +1731,10 @@ def example_scheduler(args):
     footprint_mask = footprints_hp_array["r"] * 0
     footprint_mask[to_mask] = np.nan
 
+    to_boost = np.where(labels == 'nes')[0]
+
     for key in footprints_hp:
-        footprints_hp[key] *= fp_extra
+        footprints_hp[key][to_boost] *= fp_extra
 
     ss_footprints = make_rolling_footprints(
         fp_hp=footprints_hp,
