@@ -19,7 +19,7 @@
 
 ## Walltime (hours:min:sec) Do not specify a walltime substantially more than your job needs.
 
-#SBATCH --time=2:00:00
+#SBATCH --time=13:00:00
 
 ## Memory per node. It is important to specify the memory since the default memory is very small.
 
@@ -59,7 +59,7 @@ cat start_date.sh | parallel -j 28
 
 rm maf.sh
 # ls *10yrs.db | xargs -I'{}' echo "glance_dir --db '{}'" > maf.sh
-# ls *10yrs.db | xargs -I'{}' echo "scimaf_dir --db '{}'" >> maf.sh
+ls *10yrs.db | xargs -I'{}' echo "scimaf_dir --db '{}'" >> maf.sh
 # #ls *10yrs.db | xargs -I'{}' echo "scimaf_dir --limited --db '{}'" >> maf.sh
 # ls *10yrs.db | xargs -I'{}' echo "ddf_dir --db '{}'" >> maf.sh
 # ls *10yrs.db | xargs -I'{}' echo "metadata_dir --db '{}'" >> maf.sh
@@ -67,7 +67,7 @@ rm maf.sh
 # generate_ss 
 # cat ss_script.sh >> maf.sh
 
-ls *10yrs.db | xargs -I'{}' echo "python xrb.py --db '{}'" >> maf.sh
+
 
 
 cat maf.sh | parallel -j 28
