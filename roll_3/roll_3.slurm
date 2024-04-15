@@ -2,7 +2,7 @@
 
 ## Job Name
 
-#SBATCH --job-nameroll_3_3.4
+#SBATCH --job-name roll_3_3.4
 
 ## Allocation Definition
 
