@@ -6,6 +6,7 @@ import subprocess
 import sys
 
 import healpy as hp
+import matplotlib.pylab as plt
 import numpy as np
 import rubin_scheduler
 import rubin_scheduler.scheduler.basis_functions as bf
@@ -26,274 +27,14 @@ from rubin_scheduler.scheduler.surveys import (
 from rubin_scheduler.scheduler.utils import (
     ConstantFootprint,
     EuclidOverlapFootprint,
-    Footprint,
-    Footprints,
-    StepSlopes,
-    set_default_nside,
+    make_rolling_footprints,
 )
-from rubin_scheduler.site_models import Almanac
 from rubin_scheduler.utils import _hpid2_ra_dec
 
 # So things don't fail on hyak
 iers.conf.auto_download = False
 # XXX--note this line probably shouldn't be in production
 iers.conf.auto_max_age = None
-
-
-def make_rolling_footprints(
-    fp_hp=None,
-    mjd_start=60218.0,
-    sun_ra_start=3.27717639,
-    nslice=2,
-    scale=0.8,
-    nside=32,
-    wfd_indx=None,
-    order_roll=0,
-    n_cycles=None,
-    n_constant_start=3,
-    n_constant_end=6,
-    uniform=True,
-):
-    """
-    Generate rolling footprints
-
-    Parameters
-    ----------
-    fp_hp : dict-like
-        A dict with filtername keys and HEALpix map values
-    mjd_start : `float`
-        The starting date of the survey.
-    sun_ra_start : `float`
-        The RA of the sun at the start of the survey
-    nslice : `int`
-        How much to slice the sky up. Can be 2, 3, 4, or 6.
-    scale : `float`
-        The strength of the rolling, value of 1 is full power rolling.
-        Zero is no rolling.
-    wfd_indx : array of ints
-        The indices of the HEALpix map that are to be included in the rolling.
-    order_roll : `int`
-        Change the order of when bands roll. Default 0.
-    n_cycles : `int`
-        Number of complete rolling cycles to attempt. If None, defaults to 3
-        full cycles for nslice=2, 2 cycles for nslice=3 or 4, and 1 cycle for
-        nslice=6.
-    n_constant_start : `int`
-        The number of constant non-rolling seasons to start with.
-        Anything less than 3 results in rolling starting before the
-        entire sky has had a constant year.
-    n_constant_end : `int`
-        The number of constant seasons to end the survey with. Defaults to 6.
-
-    Returns
-    -------
-    Footprints object
-    """
-
-    nc_default = {2: 3, 3: 2, 4: 2, 6: 1}
-    if n_cycles is None:
-        n_cycles = nc_default[nslice]
-
-    hp_footprints = fp_hp
-
-    D = 1.0 - scale
-    U = nslice - D * (nslice - 1)
-
-    start = [1.0] * n_constant_start
-    # After n_cycles, just go to no-rolling for 6 years.
-    end = [1.0] * n_constant_end
-
-    rolling = [U] + [D] * (nslice - 1)
-    rolling = rolling * n_cycles
-
-    rolling = np.roll(rolling, order_roll).tolist()
-
-    if uniform:
-        all_slopes = [
-            start + [U, D, U, D, 1, D, U, 1] + end[:-2],
-            start + [D, U, D, U, 1, U, D, 1] + end[:-2],
-            start + [U, D, 1, D, U, 1, U, D] + end[:-2],
-            start + [D, U, 1, U, D, 1, D, U] + end[:-2],
-        ]
-    else:
-        all_slopes = [
-            start + rolling + end,
-            start + np.roll(rolling, 1).tolist() + end,
-        ]
-
-    fp_non_wfd = Footprint(mjd_start, sun_ra_start=sun_ra_start, nside=nside)
-    rolling_footprints = []
-    for i in range(len(all_slopes)):
-        step_func = StepSlopes(rise=all_slopes[i])
-        rolling_footprints.append(
-            Footprint(
-                mjd_start,
-                sun_ra_start=sun_ra_start,
-                step_func=step_func,
-                nside=nside,
-            )
-        )
-
-    wfd = hp_footprints["r"] * 0
-    if wfd_indx is None:
-        wfd_indx = np.where(hp_footprints["r"] == 1)[0]
-
-    wfd[wfd_indx] = 1
-    non_wfd_indx = np.where(wfd == 0)[0]
-
-    if uniform:
-        split_wfd_indices = slice_quad_galactic_cut(
-            hp_footprints,
-            nslice=nslice,
-            wfd_indx=wfd_indx,
-            ra_range=(sun_ra_start + 1.5 * np.pi, sun_ra_start + np.pi / 2),
-        )
-
-        split_wfd_indices_delayed = slice_quad_galactic_cut(
-            hp_footprints,
-            nslice=nslice,
-            wfd_indx=wfd_indx,
-            ra_range=(sun_ra_start + np.pi / 2, sun_ra_start + 1.5 * np.pi),
-        )
-    else:
-        split_wfd_indices = slice_quad_galactic_cut(
-            hp_footprints,
-            nslice=nslice,
-            wfd_indx=wfd_indx,
-        )
-
-    for key in hp_footprints:
-        temp = hp_footprints[key] + 0
-        temp[wfd_indx] = 0
-        fp_non_wfd.set_footprint(key, temp)
-
-        for i in range(nslice):
-            # make a copy of the current filter
-            temp = hp_footprints[key] + 0
-            # Set the non-rolling area to zero
-            temp[non_wfd_indx] = 0
-
-            indx = split_wfd_indices[i]
-            # invert the indices
-            ze = temp * 0
-            ze[indx] = 1
-            temp = temp * ze
-            rolling_footprints[i].set_footprint(key, temp)
-
-        if uniform:
-            for _i in range(nslice, nslice + 2):
-                # make a copy of the current filter
-                temp = hp_footprints[key] + 0
-                # Set the non-rolling area to zero
-                temp[non_wfd_indx] = 0
-
-                indx = split_wfd_indices_delayed[_i - 2]
-                # invert the indices
-                ze = temp * 0
-                ze[indx] = 1
-                temp = temp * ze
-                rolling_footprints[_i].set_footprint(key, temp)
-
-    result = Footprints([fp_non_wfd] + rolling_footprints)
-    return result
-
-
-def _is_in_ra_range(ra, low, high):
-    _low = low % (2.0 * np.pi)
-    _high = high % (2.0 * np.pi)
-    if _low <= _high:
-        return (ra >= _low) & (ra <= _high)
-    else:
-        return (ra >= _low) | (ra <= _high)
-
-
-def slice_quad_galactic_cut(target_map, nslice=2, wfd_indx=None, ra_range=None):
-    """
-    Helper function for generating rolling footprints
-
-    Parameters
-    ----------
-    target_map : dict of HEALpix maps
-        The final desired footprint as HEALpix maps. Keys are filter names
-    nslice : `int`
-        The number of slices to make, can be 2 or 3.
-    wfd_indx : array of ints
-        The indices of target_map that should be used for rolling.
-        If None, assumes the rolling area should be where target_map['r'] == 1.
-    ra_range : tuple of floats, optional
-        If not None, then the indices are restricted to the given RA range
-        in radians.
-    """
-
-    ra, dec = ra_dec_hp_map(nside=hp.npix2nside(target_map["r"].size))
-
-    coord = SkyCoord(ra=ra * u.rad, dec=dec * u.rad)
-    _, gal_lat = coord.galactic.l.deg, coord.galactic.b.deg
-
-    indx_north = np.intersect1d(np.where(gal_lat >= 0)[0], wfd_indx)
-    indx_south = np.intersect1d(np.where(gal_lat < 0)[0], wfd_indx)
-
-    if ra_range is not None:
-        ra_indx = np.where(_is_in_ra_range(ra, *ra_range))[0]
-        indx_north = np.intersect1d(ra_indx, indx_north)
-        indx_south = np.intersect1d(ra_indx, indx_south)
-
-    splits_north = slice_wfd_area_quad(target_map, nslice=nslice, wfd_indx=indx_north)
-    splits_south = slice_wfd_area_quad(target_map, nslice=nslice, wfd_indx=indx_south)
-
-    slice_indx = []
-    for j in np.arange(nslice):
-        indx_temp = []
-        for i in np.arange(j + 1, nslice * 2 + 1, nslice):
-            indx_temp += indx_north[splits_north[i - 1] : splits_north[i]].tolist()
-            indx_temp += indx_south[splits_south[i - 1] : splits_south[i]].tolist()
-        slice_indx.append(indx_temp)
-
-    return slice_indx
-
-
-def slice_wfd_area_quad(target_map, nslice=2, wfd_indx=None):
-    """
-    Divide a healpix map in an intelligent way
-
-    Parameters
-    ----------
-    target_map : dict of HEALpix arrays
-        The input map to slice
-    nslice : int
-        The number of slices to divide the sky into (gets doubled).
-    wfd_indx : array of int
-        The indices of the healpix map to consider as part of the WFD area
-        that will be split.
-        If set to None, the pixels where target_map['r'] == 1 are
-        considered as WFD.
-    """
-    nslice2 = nslice * 2
-
-    wfd = target_map["r"] * 0
-    if wfd_indx is None:
-        wfd_indices = np.where(target_map["r"] == 1)[0]
-    else:
-        wfd_indices = wfd_indx
-    wfd[wfd_indices] = 1
-    wfd_accum = np.cumsum(wfd)
-    split_wfd_indices = np.floor(
-        np.max(wfd_accum) / nslice2 * (np.arange(nslice2) + 1)
-    ).astype(int)
-    split_wfd_indices = split_wfd_indices.tolist()
-    split_wfd_indices = [0] + split_wfd_indices
-
-    return split_wfd_indices
-
-
-def ra_dec_hp_map(nside=None):
-    """
-    Return all the RA,dec points for the centers of a healpix map, in radians.
-    """
-    if nside is None:
-        nside = set_default_nside()
-    ra, dec = _hpid2_ra_dec(nside, np.arange(hp.nside2npix(nside)))
-    return ra, dec
 
 
 def standard_bf(
@@ -363,7 +104,7 @@ def standard_bf(
     -------
     basis_functions_weights : `list`
         list of tuple pairs (basis function, weight) that is
-        (rubin_scheduler.scheduler.BasisFunction object, float)
+        (rubin_sim.scheduler.BasisFunction object, float)
 
     """
     template_weights = {
@@ -500,9 +241,7 @@ def standard_bf(
             0.0,
         )
     )
-    bfs.append(
-        (bf.AvoidDirectWind(nside=nside, wind_speed_maximum=wind_speed_maximum), 0)
-    )
+    bfs.append((bf.AvoidDirectWind(nside=nside, wind_speed_maximum=wind_speed_maximum), 0))
     filternames = [fn for fn in [filtername, filtername2] if fn is not None]
     bfs.append((bf.FilterLoadedBasisFunction(filternames=filternames), 0))
     bfs.append((bf.PlanetMaskBasisFunction(nside=nside), 0.0))
@@ -540,7 +279,7 @@ def blob_for_long(
     HA_min=12,
     HA_max=24 - 3.5,
     blob_names=[],
-    u_exptime=30.,
+    u_exptime=30.
 ):
     """
     Generate surveys that take observations in blobs.
@@ -624,6 +363,8 @@ def blob_for_long(
             )
         )
         detailer_list.append(detailers.CloseAltDetailer())
+        detailer_list.append(detailers.FilterNexp(filtername="u", nexp=1, exptime=u_exptime))
+
         # List to hold tuples of (basis_function_object, weight)
         bfs = []
 
@@ -682,7 +423,7 @@ def blob_for_long(
             detailer_list.append(detailers.TakeAsPairsDetailer(filtername=filtername2))
 
         if u_nexp1:
-            detailer_list.append(detailers.FilterNexp(filtername="u", nexp=1, exptime=u_exptime))
+            detailer_list.append(detailers.FilterNexp(filtername="u", nexp=1))
         surveys.append(
             BlobSurvey(
                 basis_functions,
@@ -695,7 +436,7 @@ def blob_for_long(
                 ignore_obs=ignore_obs,
                 nexp=nexp,
                 detailers=detailer_list,
-                **BlobSurvey_params,
+                **BlobSurvey_params
             )
         )
 
@@ -712,7 +453,7 @@ def gen_long_gaps_survey(
     time_after_twi=120,
     u_template_weight=50.0,
     g_template_weight=50.0,
-    u_exptime=30.,
+    u_exptime=30.
 ):
     """
     Paramterers
@@ -745,9 +486,7 @@ def gen_long_gaps_survey(
             u_exptime=u_exptime,
         )
         scripted = ScriptedSurvey(
-            [bf.AvoidDirectWind(nside=nside)],
-            nside=nside,
-            ignore_obs=["blob", "DDF", "twi", "pair"],
+            [bf.AvoidDirectWind(nside=nside)], nside=nside, ignore_obs=["blob", "DDF", "twi", "pair"]
         )
         surveys.append(
             LongGapSurvey(blob[0], scripted, gap_range=gap_range, avoid_zenith=True)
@@ -776,8 +515,8 @@ def gen_greedy_surveys(
     """
     Make a quick set of greedy surveys
 
-    This is a convenience function to generate a list of survey objects that can be used with
-    rubin_scheduler.scheduler.schedulers.Core_scheduler.
+    This is a convienence function to generate a list of survey objects that can be used with
+    rubin_sim.scheduler.schedulers.Core_scheduler.
     To ensure we are robust against changes in the sims_featureScheduler codebase, all kwargs are
     explicitly set.
 
@@ -860,9 +599,7 @@ def gen_greedy_surveys(
         # Masks, give these 0 weight
         bfs.append(
             (
-                bf.AltAzShadowMaskBasisFunction(
-                    nside=nside, shadow_minutes=shadow_minutes, max_alt=max_alt
-                ),
+                bf.AltAzShadowMaskBasisFunction(nside=nside, shadow_minutes=shadow_minutes, max_alt=max_alt),
                 0,
             )
         )
@@ -878,7 +615,7 @@ def gen_greedy_surveys(
                 ignore_obs=ignore_obs,
                 nexp=nexp,
                 detailers=detailer_list,
-                **greed_survey_params,
+                **greed_survey_params
             )
         )
 
@@ -1122,7 +859,7 @@ def generate_blobs(
                 ignore_obs=ignore_obs,
                 nexp=nexp,
                 detailers=detailer_list,
-                **BlobSurvey_params,
+                **BlobSurvey_params
             )
         )
 
@@ -1333,16 +1070,14 @@ def generate_twi_blobs(
                 ignore_obs=ignore_obs,
                 nexp=nexp,
                 detailers=detailer_list,
-                **BlobSurvey_params,
+                **BlobSurvey_params
             )
         )
 
     return surveys
 
 
-def ddf_surveys(
-    detailers=None, season_unobs_frac=0.2, euclid_detailers=None, nside=None
-):
+def ddf_surveys(detailers=None, season_unobs_frac=0.2, euclid_detailers=None, nside=None):
     obs_array = generate_ddf_scheduled_obs(season_unobs_frac=season_unobs_frac)
 
     euclid_obs = np.where(
@@ -1352,14 +1087,10 @@ def ddf_surveys(
         (obs_array["note"] != "DD:EDFS_b") & (obs_array["note"] != "DD:EDFS_a")
     )[0]
 
-    survey1 = ScriptedSurvey(
-        [bf.AvoidDirectWind(nside=nside)], nside=nside, detailers=detailers
-    )
+    survey1 = ScriptedSurvey([bf.AvoidDirectWind(nside=nside)], detailers=detailers)
     survey1.set_script(obs_array[all_other])
 
-    survey2 = ScriptedSurvey(
-        [bf.AvoidDirectWind(nside=nside)], nside=nside, detailers=euclid_detailers
-    )
+    survey2 = ScriptedSurvey([bf.AvoidDirectWind(nside=nside)], detailers=euclid_detailers)
     survey2.set_script(obs_array[euclid_obs])
 
     return [survey1, survey2]
@@ -1415,7 +1146,7 @@ def generate_twilight_near_sun(
     slew_estimate=4.5,
     moon_distance=30.0,
     shadow_minutes=0,
-    min_alt=20.0,
+    min_alt=20.,
     max_alt=76.0,
     max_elong=60.0,
     az_range=180.0,
@@ -1465,7 +1196,7 @@ def generate_twilight_near_sun(
     """
     survey_name = "twilight_near_sun"
     footprint = ecliptic_target(nside=nside, mask=footprint_mask)
-    constant_fp = ConstantFootprint(nside=nside)
+    constant_fp = ConstantFootprint()
     for filtername in filters:
         constant_fp.set_footprint(filtername, footprint)
 
@@ -1516,12 +1247,8 @@ def generate_twilight_near_sun(
         )
         bfs.append(
             (
-                bf.AltAzShadowMaskBasisFunction(
-                    nside=nside,
-                    shadow_minutes=shadow_minutes,
-                    max_alt=max_alt,
-                    min_alt=min_alt,
-                ),
+                bf.AltAzShadowMaskBasisFunction(nside=nside, shadow_minutes=shadow_minutes, max_alt=max_alt,
+                                                min_alt=min_alt),
                 0,
             )
         )
@@ -1579,8 +1306,9 @@ def generate_twilight_near_sun(
     return surveys
 
 
-def set_run_info(dbroot=None, file_end="v3.4_", out_dir="."):
-    """Gather versions of software used to record"""
+def set_run_info(args, dbroot=None, file_end="v3.4_", out_dir="."):
+    """Gather versions of software used to record
+    """
     extra_info = {}
     exec_command = ""
     for arg in sys.argv:
@@ -1595,9 +1323,7 @@ def set_run_info(dbroot=None, file_end="v3.4_", out_dir="."):
     try:
         rs_path = rubin_scheduler.__path__[0]
         hash_file = os.path.join(rs_path, "../", ".git/refs/heads/main")
-        extra_info["rubin_scheduler git hash"] = subprocess.check_output(
-            ["cat", hash_file]
-        )
+        extra_info["rubin_scheduler git hash"] = subprocess.check_output(["cat", hash_file])
     except subprocess.CalledProcessError:
         pass
 
@@ -1606,7 +1332,7 @@ def set_run_info(dbroot=None, file_end="v3.4_", out_dir="."):
         fileroot = os.path.basename(sys.argv[0]).replace(".py", "") + "_"
     else:
         fileroot = dbroot + "_"
-    fileroot = os.path.join(out_dir, fileroot + file_end)
+    fileroot = os.path.join(out_dir, fileroot + 'expt%i_nscale%.1f' % (args.u_exptime, args.u_n_scale) + file_end)
     return fileroot, extra_info
 
 
@@ -1614,13 +1340,15 @@ def run_sched(
     scheduler,
     survey_length=365.25,
     nside=32,
-    filename=None,
+    fileroot="baseline_",
     verbose=False,
     extra_info=None,
     illum_limit=40.0,
     mjd_start=60796.0,
 ):
-    """Run survey"""
+    """Run survey
+    """
+    years = np.round(survey_length / 365.25)
     n_visit_limit = None
     fs = SimpleFilterSched(illum_limit=illum_limit)
     observatory = ModelObservatory(nside=nside, mjd_start=mjd_start)
@@ -1628,7 +1356,7 @@ def run_sched(
         observatory,
         scheduler,
         survey_length=survey_length,
-        filename=filename,
+        filename=fileroot + "%iyrs.db" % years,
         delete_past=True,
         n_visit_limit=n_visit_limit,
         verbose=verbose,
@@ -1658,20 +1386,16 @@ def example_scheduler(args):
     neo_elong_req = args.neo_elong_req
     neo_area_req = args.neo_area_req
     nside = args.nside
-    mjd_plus = args.mjd_plus
     u_n_scale = args.u_n_scale
     u_exptime = args.u_exptime
 
-
     # Be sure to also update and regenerate DDF grid save file if changing mjd_start
-    mjd_start = 60796.0 + mjd_plus
+    mjd_start = 60796.0
     per_night = True  # Dither DDF per night
 
     camera_ddf_rot_limit = 75.0  # degrees
 
-    fileroot, extra_info = set_run_info(
-        dbroot=dbroot, file_end="mjdp%i_v3.4_" % mjd_plus, out_dir=out_dir
-    )
+    fileroot, extra_info = set_run_info(args, dbroot=dbroot, file_end="v3.4_", out_dir=out_dir)
 
     pattern_dict = {
         1: [True],
@@ -1709,21 +1433,20 @@ def example_scheduler(args):
 
     repeat_night_weight = None
 
-    # Use the Almanac to find the position of the sun at the start of survey
-    almanac = Almanac(mjd_start=mjd_start)
-    sun_moon_info = almanac.get_sun_moon_positions(mjd_start)
-    sun_ra_start = sun_moon_info["sun_RA"].copy()
+    observatory = ModelObservatory(nside=nside, mjd_start=mjd_start)
+    conditions = observatory.return_conditions()
 
     footprints = make_rolling_footprints(
         fp_hp=footprints_hp,
-        mjd_start=mjd_start,
-        sun_ra_start=sun_ra_start,
+        mjd_start=conditions.mjd_start,
+        sun_ra_start=conditions.sun_ra_start,
         nslice=nslice,
         scale=rolling_scale,
         nside=nside,
         wfd_indx=wfd_indx,
         order_roll=1,
-        n_cycles=3,
+        n_cycles=4,
+        uniform=True
     )
 
     gaps_night_pattern = [True] + [False] * nights_off
@@ -1778,8 +1501,8 @@ def example_scheduler(args):
         nside,
         nexp=nexp,
         footprints=footprints,
-        mjd_start=mjd_start,
-        u_exptime=u_exptime,
+        mjd_start=conditions.mjd_start,
+        u_exptime=u_exptime
     )
     twi_blobs = generate_twi_blobs(
         nside,
@@ -1796,12 +1519,11 @@ def example_scheduler(args):
     if args.setup_only:
         return scheduler
     else:
-        years = np.round(survey_length / 365.25)
         observatory, scheduler, observations = run_sched(
             scheduler,
             survey_length=survey_length,
             verbose=verbose,
-            filename=os.path.join(fileroot + "%iyrs.db" % years),
+            fileroot=os.path.join(fileroot),
             extra_info=extra_info,
             nside=nside,
             illum_limit=illum_limit,
@@ -1812,14 +1534,10 @@ def example_scheduler(args):
 
 def sched_argparser():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--verbose", dest="verbose", action="store_true", help="Print more output"
-    )
+    parser.add_argument("--verbose", dest="verbose", action="store_true")
     parser.set_defaults(verbose=False)
-    parser.add_argument(
-        "--survey_length", type=float, default=365.25 * 10, help="Survey length in days"
-    )
-    parser.add_argument("--out_dir", type=str, default="", help="Output directory")
+    parser.add_argument("--survey_length", type=float, default=365.25 * 10)
+    parser.add_argument("--out_dir", type=str, default="")
     parser.add_argument(
         "--maxDither", type=float, default=0.7, help="Dither size for DDFs (deg)"
     )
@@ -1829,81 +1547,21 @@ def sched_argparser():
         default=40.0,
         help="illumination limit to remove u-band",
     )
-    parser.add_argument(
-        "--nexp", type=int, default=2, help="Number of exposures per visit"
-    )
-    parser.add_argument(
-        "--rolling_nslice",
-        type=int,
-        default=2,
-        help="Number of independent rolling stripes",
-    )
-    parser.add_argument(
-        "--rolling_strength",
-        type=float,
-        default=0.9,
-        help="Rolling strength between 0-1",
-    )
-    parser.add_argument("--dbroot", type=str, help="Database root")
-    parser.add_argument(
-        "--ddf_season_frac",
-        type=float,
-        default=0.2,
-        help="How much of season to use for DDFs",
-    )
+    parser.add_argument("--nexp", type=int, default=2)
+    parser.add_argument("--rolling_nslice", type=int, default=2)
+    parser.add_argument("--rolling_strength", type=float, default=0.9)
+    parser.add_argument("--dbroot", type=str)
+    parser.add_argument("--ddf_season_frac", type=float, default=0.2)
     parser.add_argument("--nights_off", type=int, default=3, help="For long gaps")
+    parser.add_argument("--neo_night_pattern", type=int, default=4)
+    parser.add_argument("--neo_filters", type=str, default="riz")
+    parser.add_argument("--neo_repeat", type=int, default=4)
+    parser.add_argument("--neo_am", type=float, default=2.5)
+    parser.add_argument("--neo_elong_req", type=float, default=45.0)
+    parser.add_argument("--neo_area_req", type=float, default=0.0)
+    parser.add_argument("--setup_only", dest="setup_only", default=False, action="store_true")
     parser.add_argument(
-        "--neo_night_pattern",
-        type=int,
-        default=4,
-        help="Which night pattern to use for inner solar system",
-    )
-    parser.add_argument(
-        "--neo_filters", type=str, default="riz", help="Filters for inner solar system"
-    )
-    parser.add_argument(
-        "--neo_repeat",
-        type=int,
-        default=4,
-        help="Number of repeat visits for inner solar system",
-    )
-    parser.add_argument(
-        "--neo_am",
-        type=float,
-        default=2.5,
-        help="Airmass limit for twilight NEO visits",
-    )
-    parser.add_argument(
-        "--neo_elong_req",
-        type=float,
-        default=45.0,
-        help="Solar elongation required for inner solar system",
-    )
-    parser.add_argument(
-        "--neo_area_req",
-        type=float,
-        default=0.0,
-        help="Sky area required before attempting inner solar system",
-    )
-    parser.add_argument(
-        "--setup_only",
-        dest="setup_only",
-        default=False,
-        action="store_true",
-        help="Only construct scheduler, do not simulate",
-    )
-    parser.add_argument(
-        "--nside",
-        type=int,
-        default=32,
-        help="Nside should be set to default (32) except for tests.",
-    )
-
-    parser.add_argument(
-        "--mjd_plus",
-        type=float,
-        default=0,
-        help="number of days to add to the mjd start",
+        "--nside", type=int, default=32, help="Nside should be set to default (32) except for tests."
     )
     parser.add_argument('--u_exptime', type=float, default=38.)
     parser.add_argument('--u_n_scale', type=float, default=1.1)
@@ -1912,6 +1570,7 @@ def sched_argparser():
 
 
 if __name__ == "__main__":
+
     parser = sched_argparser()
     args = parser.parse_args()
     example_scheduler(args)
