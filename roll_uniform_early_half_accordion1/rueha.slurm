@@ -33,7 +33,7 @@
 
 ## Specify the working directory for this job
 
-#SBATCH --chdir=/gscratch/scrubbed/yoachim/sims_featureScheduler_runs3.4/rueha
+#SBATCH --chdir=/gscratch/scrubbed/yoachim/sims_featureScheduler_runs3.4/roll_uniform_early_half_accordion1
 
 ##turn on e-mail notification
 
