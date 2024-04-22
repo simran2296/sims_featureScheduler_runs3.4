@@ -98,6 +98,7 @@ def make_rolling_footprints(
     n_cycles=None,
     n_constant_start=2,
     n_constant_end=6,
+    acc_strength=1.,
 ):
     """
     Generate rolling footprints
@@ -185,7 +186,7 @@ def make_rolling_footprints(
     fp_non_wfd = Footprint(mjd_start, sun_ra_start=sun_ra_start, nside=nside)
     rolling_footprints = []
     for i in range(len(all_slopes)):
-        step_func = LinearAccordion(rise=all_slopes[i], strength=1)
+        step_func = LinearAccordion(rise=all_slopes[i], strength=acc_strength)
         rolling_footprints.append(
             Footprint(
                 mjd_start,
@@ -1713,6 +1714,7 @@ def example_scheduler(args):
     neo_area_req = args.neo_area_req
     nside = args.nside
     mjd_plus = args.mjd_plus
+    acc_strength = args.acc_strength
 
     # Be sure to also update and regenerate DDF grid save file if changing mjd_start
     mjd_start = 60796.0 + mjd_plus
@@ -1721,7 +1723,7 @@ def example_scheduler(args):
     camera_ddf_rot_limit = 75.0  # degrees
 
     fileroot, extra_info = set_run_info(
-        dbroot=dbroot, file_end="mjdp%i_v3.4_" % mjd_plus, out_dir=out_dir
+        dbroot=dbroot, file_end="acc%.1f_mjdp%i_v3.4_" % (acc_strength, mjd_plus), out_dir=out_dir
     )
 
     pattern_dict = {
@@ -1772,6 +1774,7 @@ def example_scheduler(args):
         wfd_indx=wfd_indx,
         order_roll=1,
         n_cycles=3,
+        acc_strength=acc_strength,
     )
 
     gaps_night_pattern = [True] + [False] * nights_off
@@ -1951,6 +1954,11 @@ def sched_argparser():
         default=0,
         help="number of days to add to the mjd start",
     )
+
+    parser.add_argument("--acc_strength",
+                        type=float,
+                        default=1.,
+                        help="strenght of accordion cadence")
 
     return parser
 
