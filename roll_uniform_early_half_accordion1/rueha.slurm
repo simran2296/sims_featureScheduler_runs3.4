@@ -67,4 +67,4 @@ ls *10yrs.db | xargs -I'{}' echo "scimaf_dir --db '{}'" >> maf.sh
 #generate_ss 
 #cat ss_script.sh >> maf.sh
 
-#cat maf.sh | parallel -j 28
+cat maf.sh | parallel -j 28
