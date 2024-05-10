@@ -1433,7 +1433,7 @@ def example_scheduler(args):
     footprint_mask = footprints_hp["r"] * 0
     footprint_mask[np.where(footprints_hp["r"] > 0)] = 1
 
-    repeat_night_weight = -20
+    repeat_night_weight = None
 
     # Use the Almanac to find the position of the sun at the start of survey
     almanac = Almanac(mjd_start=mjd_start)
