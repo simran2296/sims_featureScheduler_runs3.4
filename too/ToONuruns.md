@@ -16,24 +16,26 @@ t0 = time of trigger
 
 * Night 0: 
 
-        [g] @ t=t0 120sec
+        [g] @ t=t0 1 pass 120sec 
 
-        [r] @ t=t0 + 15 minutes
+        [r] @ t=t0 +> 15 minutes 1 pass 30sec
 
-        [z] within the night
+        [z] within the night 1 pass 30sec
 
 * Night 1: 
 
-        [g] @ t=t0 120s
+        [g] @ t=t0 1 pass 120s at some point in the night
 
-        [r] @ t=t0 + 15 minutes
+        [r] @ t=t0 1 pass 30sec right after
 
 * 6 <= Night <= 8:
 
-        [g] @ t=t0 120sec
+        [g] x 1 pass 30s at some point in the night
 
-        [r] @ t=t0 + 15 minutes
+        [r] x 1 pass 30s right after
+
+        [z] x 1 pass 30s right after
 
 * 0 <= Night <= 60: first night with u-band filter after t0
     
-        [u]
+        [u] x 1 pass 30 s
