@@ -1,6 +1,7 @@
 
 
 **Simulate SSO ToO**
+**SCHEMA: Lynne will advise on number of triggers and sky placement**
 
 **N total** = 300 (30/year) triggers
 
