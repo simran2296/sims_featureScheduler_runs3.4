@@ -4,11 +4,11 @@
 1) simulate 3xNtriggers where Ntrigger is the number of recommended triggers as all-sky events.
 2) follow up any of the area that is visible, regardless of the location of the trigger
 3) simulate 
+- 1 run with 3 x 1/2 x Ntrigger
 - 1 run with 3 x 3/4 x Ntrigger
-- 1 run with 3 x 4/5 x Ntrigger
 - 1 run with 3 x Ntrigger
-- 1 run with 3 x 6/5 x Ntrigger
-- 1 run with 3 x 5/4 x Ntrigger
+- 1 run with 3 x 3/2 x Ntrigger
+- 1 run with 3 x 2 x Ntrigger
 - 1 run with 3 x Ntrigger with 30sec exposures (e.g. where 120sec exposures are asked simulate 4x30s) _QUESTION: can this run use the same triggers as the 3 x Ntrigger run so that we can measure the impact of exposure length aside from other stochastic changes?_
 
 **Ntrigger = 22** triggers
