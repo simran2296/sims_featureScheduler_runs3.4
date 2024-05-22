@@ -1,16 +1,18 @@
 import numpy as np
-import pandas as pd
 import healpy as hp
-from rubin_scheduler.scheduler.utils import (SimTargetooServer, TargetoO)
-import sqlite3
 from rubin_scheduler.utils import (
     _hpid2_ra_dec,
     _angular_separation,
 )
+from rubin_scheduler.scheduler.utils import (
+    SimTargetooServer,
+    TargetoO,
+)
+import sqlite3
+import pandas as pd
 
 
-#def gen_gw_events(mjd_start=61557, mjd_end=62502, scale=3, seed=42):
-def gen_gw_events(mjd_start=60796, mjd_end=62502, scale=3, seed=42):
+def gen_gw_events(mjd_start=61557, mjd_end=62502, scale=3, seed=42):
     """Generate gravitational wave events
     """
 
@@ -158,7 +160,7 @@ def gen_sso_events(n_events=300, twi_fraction=0.75, seed=52):
 
     rng = np.random.default_rng(seed=seed)
 
-    con = sqlite3.connect("../baseline/baseline_v3.4_10yrs.db")
+    con = sqlite3.connect("../../baseline/baseline_v3.4_10yrs.db")
     df = pd.read_sql('select fieldRA as ra,fieldDec as dec, observationStartMJD from observations where note like "twilight%"', con)
     names = ["mjd_start", "ra", "dec", "expires", "radius", "ToO_label"]
     types = [float] * 5 + ['<U50']
@@ -201,6 +203,11 @@ def gen_all_events(scale=1, nside=32):
 
     event_table = np.concatenate(events)
 
+    # add in the previous stuff:
+    old1, old2 = generate_events(rate=scale)
+
+    event_table = np.concatenate([old2, event_table])
+
     events = []
     for i, event_time in enumerate(event_table["mjd_start"]):
         dist = _angular_separation(ra, dec, event_table["ra"][i], event_table["dec"][i])
@@ -219,4 +226,84 @@ def gen_all_events(scale=1, nside=32):
         )
     events = SimTargetooServer(events)
 
+    return events, event_table
+
+
+
+def generate_events(
+    nside=32,
+    mjd_start=59853.5,
+    radius_possible=[2.52, 4.0, 5.64],
+    radius_fractions=[0.15, 0.5, 1.],
+    survey_length=365.25 * 10,
+    rate=10.0,
+    expires=3.0,
+    seed=42,
+    frac_inter=0.8,
+):
+    """Generate a bunch of ToO events
+
+    Parameters
+    ----------
+    rate : float (10)
+        The number of events per year.
+    expires : float (3)
+        How long to keep broadcasting events as relevant (days)
+    """
+
+    np.random.seed(seed=seed)
+    ra, dec = _hpid2_ra_dec(nside, np.arange(hp.nside2npix(nside)))
+    # Use a ceil here so we get at least 1 event even if doing a short run.
+    n_events = int(np.ceil(survey_length / 365.25 * rate))
+
+    names = ["mjd_start", "ra", "dec", "expires", "radius", "ToO_label"]
+    types = [float] * 5 + ['<U50']
+    event_table = np.zeros(n_events, dtype=list(zip(names, types)))
+
+    event_table["mjd_start"] = (
+        np.sort(np.random.random(n_events)) * survey_length + mjd_start
+    )
+    
+    # Make sure latitude points spread correctly
+    # http://mathworld.wolfram.com/SpherePointPicking.html
+    event_table["ra"] = np.random.rand(n_events) * np.pi * 2
+    event_table["dec"] = np.arccos(2.0 * np.random.rand(n_events) - 1.0) - np.pi / 2.0
+
+    # set a searcha radius for each event
+    draw = np.random.uniform(size=n_events)
+
+    indx = np.searchsorted(radius_fractions, draw)
+
+    radius = np.radians(radius_possible)[indx]
+
+    event_table["radius"] = radius
+
+    draw = np.random.uniform(size=n_events)
+    no_intur = draw > frac_inter
+
+    # for now, use flat 100 hours
+    intur_time = np.random.uniform(size=n_events)*100/24. + event_table["mjd_start"]
+
+    # If we are not inturupting, use expires time
+    intur_time[np.where(no_intur)[0]] = expires + event_table["mjd_start"][np.where(no_intur)]
+
+    event_table["expires"] = intur_time
+
+    events = []
+    for i, event_time in enumerate(event_table["mjd_start"]):
+        dist = _angular_separation(ra, dec, event_table["ra"][i], event_table["dec"][i])
+        good = np.where(dist <= radius[i])
+        footprint = np.zeros(ra.size, dtype=float)
+        footprint[good] = 1
+        events.append(
+            TargetoO(
+                i,
+                footprint,
+                event_time,
+                intur_time[i],
+                ra_rad_center=event_table["ra"][i],
+                dec_rad_center=event_table["dec"][i],
+            )
+        )
+    events = SimTargetooServer(events)
     return events, event_table
