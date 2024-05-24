@@ -61,6 +61,7 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
         id_start=1,
         detailers=None,
         too_types_to_follow=[""],
+        split_long=False
     ):
         # Figure out what else I need to super here
 
@@ -93,6 +94,7 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
         self.detailers = detailers
         self.last_mjd = -1
         self.too_types_to_follow = too_types_to_follow
+        self.split_long = split_long
 
         self.camera = camera
         # Load the OpSim field tesselation and map healpix to fields
@@ -239,6 +241,17 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
                                 else:
                                     nexp = self.n_snaps
 
+                                # If we are doing a short exposure
+                                # need to be 1 snap for shutter limits
+                                if exptime < 29.:
+                                    nexp = 1
+
+                                # check if we should break
+                                # long exposures into multiple
+                                if self.split_long:
+                                    if exptime > 119:
+                                        nexp = int(np.round(exptime/30.))
+
                                 obs = scheduled_observation(ras.size)
                                 obs["RA"] = ras
                                 obs["dec"] = decs
@@ -309,7 +322,7 @@ def mean_longitude(longitude):
     return mid_longitude
 
 
-def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None):
+def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long=False):
 
     result = []
 
@@ -337,6 +350,7 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None):
             detailers=detailer_list,
             too_types_to_follow=["GW_case_A"],
             survey_name="ToO, GW_case_A",
+            split_long=split_long,
         )
     )
 
@@ -356,6 +370,7 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None):
             detailers=detailer_list,
             too_types_to_follow=["GW_case_B", "GW_case_C"],
             survey_name="ToO, GW_case_B_C",
+            split_long=split_long,
         )
     )
 
@@ -375,6 +390,7 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None):
             detailers=detailer_list,
             too_types_to_follow=["GW_case_D", "GW_case_E"],
             survey_name="ToO, GW_case_D_E",
+            split_long=split_long,
         )
     )
 
@@ -401,6 +417,7 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None):
             detailers=detailer_list,
             too_types_to_follow=["BBH_case_A", "BBH_case_B", "BBH_case_C"],
             survey_name="ToO, BBH",
+            split_long=split_long,
         )
     )
 
@@ -425,6 +442,7 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None):
             detailers=detailer_list,
             too_types_to_follow=["lensed_BNS_case_A"],
             survey_name="ToO, LensedBNS_A",
+            split_long=split_long,
         ))
 
     times = [1.]
@@ -444,6 +462,7 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None):
             detailers=detailer_list,
             too_types_to_follow=["lensed_BNS_case_A"],
             survey_name="ToO, LensedBNS_A",
+            split_long=split_long,
         ))
 
     ############
@@ -471,6 +490,7 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None):
             detailers=detailer_list,
             too_types_to_follow=["neutrino"],
             survey_name="ToO, neutrino",
+            split_long=split_long,
         )
     )
 
@@ -481,10 +501,32 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None):
     # but this should work for now. Want to add a detailer to add a dither
     # position. 
 
-    # Maybe split night and twilight later.
-    times = [0, 10/60., 20/60.]
+    
+    times = [0, 33/60., 66/60.]
     filters_at_times = ['r'] * 3
     nvis = [1] * 3
+    exptimes = [30.] * 3
+
+    result.append(
+        ToO_scripted_survey(
+            [],
+            nside=nside,
+            followup_footprint=too_footprint,
+            times=times,
+            filters_at_times=filters_at_times,
+            nvis=nvis,
+            exptimes=exptimes,
+            detailers=detailer_list,
+            too_types_to_follow=["SSO_night"],
+            survey_name="ToO, SSO_night",
+            split_long=split_long,
+        )
+    )
+
+
+    times = [0, 10/60., 20/60.]
+    filters_at_times = ['z'] * 3
+    nvis = [2] * 3
     exptimes = [15.] * 3
 
     result.append(
@@ -497,8 +539,9 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None):
             nvis=nvis,
             exptimes=exptimes,
             detailers=detailer_list,
-            too_types_to_follow=["SSO_night", "SSO_twilight"],
-            survey_name="ToO, SSO",
+            too_types_to_follow=["SSO_twilight"],
+            survey_name="ToO, SSO_twi",
+            split_long=split_long,
         )
     )
 
