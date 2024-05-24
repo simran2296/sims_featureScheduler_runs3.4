@@ -1,0 +1,7 @@
+https://s3df.slac.stanford.edu/data/rubin/sim-data/sims_featureScheduler_runs3.3/baseline/baseline_v3.3_10yrs.db
+https://s3df.slac.stanford.edu/data/rubin/sim-data/sims_featureScheduler_runs3.2/baseline/baseline_v3.2_10yrs.db
+https://s3df.slac.stanford.edu/data/rubin/sim-data/sims_featureScheduler_runs3.0/baseline/baseline_v3.0_10yrs.db
+https://s3df.slac.stanford.edu/data/rubin/sim-data/sims_featureScheduler_runs2.2/baseline/baseline_v2.2_10yrs.db
+https://s3df.slac.stanford.edu/data/rubin/sim-data/sims_featureScheduler_runs2.1/baseline/baseline_v2.1_10yrs.db
+https://s3df.slac.stanford.edu/data/rubin/sim-data/sims_featureScheduler_runs2.0/baseline/baseline_v2.0_10yrs.db
+https://s3df.slac.stanford.edu/data/rubin/sim-data/sims_featureScheduler_runs2.0/retro/retro_baseline_v2.0_10yrs.db
