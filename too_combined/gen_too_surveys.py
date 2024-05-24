@@ -1,3 +1,5 @@
+import healpy as hp
+import matplotlib.pylab as plt
 import numpy as np
 from rubin_scheduler.site_models import _read_fields
 from rubin_scheduler.scheduler.surveys import (
@@ -7,43 +9,12 @@ from rubin_scheduler.scheduler.surveys import (
 from rubin_scheduler.scheduler.utils import (
     scheduled_observation,
     comcam_tessellate,
-    gnomonic_project_toxy,
-    tsp_convex,
+    order_observations,
 )
 from rubin_scheduler.utils import (
-    _hpid2_ra_dec,
     _ra_dec2_hpid,
     _approx_ra_dec2_alt_az,
-    _angular_separation,
 )
-
-
-def gen_too_surveys(too_footprint, detailer_list=[], nside=32):
-    surveys = []
-
-    # Let's make a footprint to follow up ToO events
-    too_footprint = too_footprint * 0 + np.nan
-    too_footprint[np.where(too_footprint > 0)[0]] = 1.0
-
-    # Set up the damn ToO kwargs
-    too_filters = "gz"
-    times = [1, 2, 4, 24, 48]
-    filters_at_times = [too_filters] * 3 + ["gz", "gz"]
-    nvis = [1, 1, 1, 6, 6]
-    too_nfollow = 5
-
-    s1 = ToO_scripted_survey(
-        [],
-        nside=nside,
-        followup_footprint=too_footprint,
-        times=times[0:too_nfollow],
-        filters_at_times=filters_at_times[0:too_nfollow],
-        nvis=nvis[0:too_nfollow],
-        detailers=detailer_list,
-    )
-
-    surveys.append(s1)
-    return surveys
 
 
 class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
@@ -71,7 +42,7 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
         times=[1, 2, 4, 24, 48],
         filters_at_times=["gz", "gz", "gz", "gz", "gz", "gz"],
         nvis=[1, 1, 1, 1, 6, 6],
-        exptime=30.0,
+        exptimes=[30.0, 30, 30, 30, 30, 30],
         camera="LSST",
         survey_name="ToO",
         flushtime=2.0,
@@ -89,6 +60,7 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
         n_usnaps=1,
         id_start=1,
         detailers=None,
+        too_types_to_follow=[""],
     ):
         # Figure out what else I need to super here
 
@@ -100,7 +72,7 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
         self.reward_val = reward_val
         self.times = np.array(times) / 24.0  # to days
         self.filters_at_times = filters_at_times
-        self.exptime = exptime
+        self.exptimes = exptimes
         self.nvis = nvis
         self.n_snaps = n_snaps
         self.n_usnaps = n_usnaps
@@ -120,6 +92,7 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
         self.id_start = id_start
         self.detailers = detailers
         self.last_mjd = -1
+        self.too_types_to_follow = too_types_to_follow
 
         self.camera = camera
         # Load the OpSim field tesselation and map healpix to fields
@@ -203,90 +176,97 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
         """A new ToO event, generate any observations for followup"""
         # flush out any old observations or ones that have been completed
         self.flush_script(conditions)
-        # Check that the event center is in the footprint we want to observe
-        hpid_center = _ra_dec2_hpid(
-            self.nside, target_o_o.ra_rad_center, target_o_o.dec_rad_center
-        )
-        if self.followup_footprint[hpid_center] > 0:
-            target_area = self.followup_footprint * target_o_o.footprint
-            # generate a list of pointings for that area
-            hpid_to_observe = np.where(target_area > 0)[0]
 
-            # Check if we should spin the tesselation for the night.
-            if self.dither & (conditions.night != self.night):
-                self._spin_fields(conditions)
-                self.night = conditions.night + 0
-
-            field_ids = np.unique(self.hp2fields[hpid_to_observe])
-            # Put the fields in a good order.
-            better_order = order_observations(
-                self.fields["RA"][field_ids], self.fields["dec"][field_ids]
+        # check that this is the type of ToO we are supposed to trigger on
+        correct_type = False
+        for type_to_follow in self.too_types_to_follow:
+            if type_to_follow in target_o_o.too_type:
+                correct_type = True
+        if correct_type:
+            # Check that the event center is in the footprint we want to observe
+            hpid_center = _ra_dec2_hpid(
+                self.nside, target_o_o.ra_rad_center, target_o_o.dec_rad_center
             )
-            ras = self.fields["RA"][field_ids[better_order]]
-            decs = self.fields["dec"][field_ids[better_order]]
+            if self.followup_footprint[hpid_center] > 0:
+                target_area = self.followup_footprint * target_o_o.footprint
+                # generate a list of pointings for that area
+                hpid_to_observe = np.where(target_area > 0)[0]
 
-            # Figure out an MJD start time for the object if it is still rising and low.
-            alt, az = _approx_ra_dec2_alt_az(
-                target_o_o.ra_rad_center,
-                target_o_o.dec_rad_center,
-                conditions.site.latitude_rad,
-                None,
-                conditions.mjd,
-                lmst=np.max(conditions.lmst),
-            )
-            HA = np.max(conditions.lmst) - target_o_o.ra_rad_center * 12.0 / np.pi
+                # Check if we should spin the tesselation for the night.
+                if self.dither & (conditions.night != self.night):
+                    self._spin_fields(conditions)
+                    self.night = conditions.night + 0
 
-            if (HA < self.HA_max) & (HA > self.HA_min):
-                t_to_rise = (self.HA_max - HA) / 24.0
-                mjd0 = conditions.mjd + t_to_rise
-            else:
-                mjd0 = conditions.mjd + 0.0
+                field_ids = np.unique(self.hp2fields[hpid_to_observe])
+                # Put the fields in a good order.
+                better_order = order_observations(
+                    self.fields["RA"][field_ids], self.fields["dec"][field_ids]
+                )
+                ras = self.fields["RA"][field_ids[better_order]]
+                decs = self.fields["dec"][field_ids[better_order]]
 
-            obs_list = []
-            for time, filternames, nv in zip(
-                self.times, self.filters_at_times, self.nvis
-            ):
-                for filtername in filternames:
-                    # Subsitute y for z if needed
-                    if (filtername == "z") & (
-                        filtername not in conditions.mounted_filters
-                    ):
-                        filtername = "y"
-                    for i in range(nv):
-                        if filtername in conditions.mounted_filters:
-                            if filtername == "u":
-                                nexp = self.n_usnaps
-                            else:
-                                nexp = self.n_snaps
+                # Figure out an MJD start time for the object if it is still rising and low.
+                alt, az = _approx_ra_dec2_alt_az(
+                    target_o_o.ra_rad_center,
+                    target_o_o.dec_rad_center,
+                    conditions.site.latitude_rad,
+                    None,
+                    conditions.mjd,
+                    lmst=np.max(conditions.lmst),
+                )
+                HA = np.max(conditions.lmst) - target_o_o.ra_rad_center * 12.0 / np.pi
 
-                            obs = scheduled_observation(ras.size)
-                            obs["RA"] = ras
-                            obs["dec"] = decs
-                            obs["mjd"] = mjd0 + time
-                            obs["flush_by_mjd"] = mjd0 + time + self.flushtime
-                            obs["exptime"] = self.exptime
-                            obs["nexp"] = nexp
-                            obs["filter"] = filtername
-                            obs["rotSkyPos"] = (
-                                0  # XXX--maybe throw a rotation detailer in here
-                            )
-                            obs["mjd_tol"] = self.mjd_tol
-                            obs["dist_tol"] = self.dist_tol
-                            obs["alt_min"] = self.alt_min
-                            obs["alt_max"] = self.alt_max
-                            obs["HA_max"] = self.HA_max
-                            obs["HA_min"] = self.HA_min
+                if (HA < self.HA_max) & (HA > self.HA_min):
+                    t_to_rise = (self.HA_max - HA) / 24.0
+                    mjd0 = conditions.mjd + t_to_rise
+                else:
+                    mjd0 = conditions.mjd + 0.0
 
-                            obs["note"] = self.survey_name + ", %i_t%i" % (
-                                target_o_o.id,
-                                time * 24,
-                            )
-                            obs_list.append(obs)
-            observations = np.concatenate(obs_list)
-            if self.obs_wanted is not None:
-                if np.size(self.obs_wanted) > 0:
-                    observations = np.concatenate([self.obs_wanted, observations])
-            self.set_script(observations)
+                obs_list = []
+                for time, filternames, nv, exptime in zip(
+                    self.times, self.filters_at_times, self.nvis, self.exptimes
+                ):
+                    for filtername in filternames:
+                        # Subsitute y for z if needed
+                        if (filtername == "z") & (
+                            filtername not in conditions.mounted_filters
+                        ):
+                            filtername = "y"
+                        for i in range(nv):
+                            if filtername in conditions.mounted_filters:
+                                if filtername == "u":
+                                    nexp = self.n_usnaps
+                                else:
+                                    nexp = self.n_snaps
+
+                                obs = scheduled_observation(ras.size)
+                                obs["RA"] = ras
+                                obs["dec"] = decs
+                                obs["mjd"] = mjd0 + time
+                                obs["flush_by_mjd"] = mjd0 + time + self.flushtime
+                                obs["exptime"] = exptime
+                                obs["nexp"] = nexp
+                                obs["filter"] = filtername
+                                obs["rotSkyPos"] = (
+                                    0  # XXX--maybe throw a rotation detailer in here
+                                )
+                                obs["mjd_tol"] = self.mjd_tol
+                                obs["dist_tol"] = self.dist_tol
+                                obs["alt_min"] = self.alt_min
+                                obs["alt_max"] = self.alt_max
+                                obs["HA_max"] = self.HA_max
+                                obs["HA_min"] = self.HA_min
+
+                                obs["note"] = self.survey_name + ", %i_t%i" % (
+                                    target_o_o.id,
+                                    time * 24,
+                                )
+                                obs_list.append(obs)
+                observations = np.concatenate(obs_list)
+                if self.obs_wanted is not None:
+                    if np.size(self.obs_wanted) > 0:
+                        observations = np.concatenate([self.obs_wanted, observations])
+                self.set_script(observations)
 
     def calc_reward_function(self, conditions):
         """If there is an observation ready to go, execute it, otherwise, -inf"""
@@ -315,28 +295,6 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
         return observations
 
 
-# XXX--should move this to utils generally and refactor it out of base MarkovSurvey
-def order_observations(RA, dec):
-    """
-    Take a list of ra,dec positions and compute a traveling salesman solution through them
-    """
-    # Let's find a good spot to project the points to a plane
-    mid_dec = (np.max(dec) - np.min(dec)) / 2.0
-    mid_ra = mean_longitude(RA)
-    # Project the coordinates to a plane. Could consider scaling things to represent
-    # time between points rather than angular distance.
-    pointing_x, pointing_y = gnomonic_project_toxy(RA, dec, mid_ra, mid_dec)
-    # Round off positions so that we ensure identical cross-platform performance
-    # scale = 1e6
-    # pointing_x = np.round(pointing_x * scale).astype(int)
-    # pointing_y = np.round(pointing_y * scale).astype(int)
-    # Now I have a bunch of x,y pointings. Drop into TSP solver to get an effiencent route
-    towns = np.vstack((pointing_x, pointing_y)).T
-    # Leaving optimize=False for speed. The optimization step doesn't usually improve much.
-    better_order = tsp_convex(towns, optimize=False)
-    return better_order
-
-
 def mean_longitude(longitude):
     """Compute a mean longitude, accounting for wrap around."""
     x = np.cos(longitude)
@@ -349,3 +307,198 @@ def mean_longitude(longitude):
     if radius < 0.1:
         mid_longitude = np.pi
     return mid_longitude
+
+
+def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None):
+
+    result = []
+
+    ############
+    # Generic GW followup
+    ############
+
+    # XXX---There's some extra stuff about do different things
+    # if there's limited time before it sets. Let's see if this can
+    # work first
+
+    times = [0, 24, 48]
+    filters_at_times = ['ugrizy', 'ugrizy', 'ugrizy']
+    nvis = [3, 1, 1]
+    exptimes = [120., 120., 120.]
+    result.append(
+        ToO_scripted_survey(
+            [],
+            nside=nside,
+            followup_footprint=too_footprint,
+            times=times,
+            filters_at_times=filters_at_times,
+            nvis=nvis,
+            exptimes=exptimes,
+            detailers=detailer_list,
+            too_types_to_follow=["GW_case_A"],
+            survey_name="ToO, GW_case_A",
+        )
+    )
+
+    times = [0, 24, 48]
+    filters_at_times = ['gri', 'ri', 'ri']
+    nvis = [3, 1, 1]
+    exptimes = [120., 180., 180.]
+    result.append(
+        ToO_scripted_survey(
+            [],
+            nside=nside,
+            followup_footprint=too_footprint,
+            times=times,
+            filters_at_times=filters_at_times,
+            nvis=nvis,
+            exptimes=exptimes,
+            detailers=detailer_list,
+            too_types_to_follow=["GW_case_B", "GW_case_C"],
+            survey_name="ToO, GW_case_B_C",
+        )
+    )
+
+    times = [0, 24, 48]
+    filters_at_times = ['gr', 'gr', 'gr']
+    nvis = [1, 1, 1]
+    exptimes = [120., 120., 120.]
+    result.append(
+        ToO_scripted_survey(
+            [],
+            nside=nside,
+            followup_footprint=too_footprint,
+            times=times,
+            filters_at_times=filters_at_times,
+            nvis=nvis,
+            exptimes=exptimes,
+            detailers=detailer_list,
+            too_types_to_follow=["GW_case_D", "GW_case_E"],
+            survey_name="ToO, GW_case_D_E",
+        )
+    )
+
+    ############
+    # Black hole-black hole GW merger
+    ############
+
+    # XXX--only considering bright objects now. 
+
+    times = np.array([0, 2, 7, 9, 39])*24
+    filters_at_times = ['ugri'] * 5
+    nvis = [1] * 5
+    exptimes = [30.] * 5
+
+    result.append(
+        ToO_scripted_survey(
+            [],
+            nside=nside,
+            followup_footprint=too_footprint,
+            times=times,
+            filters_at_times=filters_at_times,
+            nvis=nvis,
+            exptimes=exptimes,
+            detailers=detailer_list,
+            too_types_to_follow=["BBH_case_A", "BBH_case_B", "BBH_case_C"],
+            survey_name="ToO, BBH",
+        )
+    )
+
+    ############
+    # Lensed BNS
+    ############
+
+    times = [1., 1.]
+    filters_at_times = ['g', 'r']
+    nvis = [1, 1] 
+    exptimes = [30., 90.] 
+
+    result.append(
+        ToO_scripted_survey(
+            [],
+            nside=nside,
+            followup_footprint=too_footprint,
+            times=times,
+            filters_at_times=filters_at_times,
+            nvis=nvis,
+            exptimes=exptimes,
+            detailers=detailer_list,
+            too_types_to_follow=["lensed_BNS_case_A"],
+            survey_name="ToO, LensedBNS_A",
+        ))
+
+    times = [1.]
+    filters_at_times = ['gr',]
+    nvis = [10] 
+    exptimes = [150] 
+
+    result.append(
+        ToO_scripted_survey(
+            [],
+            nside=nside,
+            followup_footprint=too_footprint,
+            times=times,
+            filters_at_times=filters_at_times,
+            nvis=nvis,
+            exptimes=exptimes,
+            detailers=detailer_list,
+            too_types_to_follow=["lensed_BNS_case_A"],
+            survey_name="ToO, LensedBNS_A",
+        ))
+
+    ############
+    # Neutrino detector followup
+    ############
+
+    # XXX--need to update footprint to cut out galactic latitude
+
+    times = [0, 15/60., 0.5, 24, 24.5, 144, 144, 144]
+    filters_at_times = ['g', 'r', 'z', 'g', 'r', 'g', 'r', 'z']
+    exptimes = [120, 30., 30., 120, 30., 30, 30, 30]
+    nvis = [1, 1, 1, 1, 1, 1, 1, 1]
+
+    # XXX--need to add a u-band with very long flush time.
+
+    result.append(
+        ToO_scripted_survey(
+            [],
+            nside=nside,
+            followup_footprint=too_footprint,
+            times=times,
+            filters_at_times=filters_at_times,
+            nvis=nvis,
+            exptimes=exptimes,
+            detailers=detailer_list,
+            too_types_to_follow=["neutrino"],
+            survey_name="ToO, neutrino",
+        )
+    )
+
+    ############
+    # Solar System
+    ############
+    # For the solar system objects, probably want a custom survey object,
+    # but this should work for now. Want to add a detailer to add a dither
+    # position. 
+
+    times = [0, 10/60., 20/60.]
+    filters_at_times = ['r'] * 3
+    nvis = [1] * 3
+    exptimes = [15.] * 3
+
+    result.append(
+        ToO_scripted_survey(
+            [],
+            nside=nside,
+            followup_footprint=too_footprint,
+            times=times,
+            filters_at_times=filters_at_times,
+            nvis=nvis,
+            exptimes=exptimes,
+            detailers=detailer_list,
+            too_types_to_follow=["SSO_night"],
+            survey_name="ToO, SSO",
+        )
+    )
+
+    return result
