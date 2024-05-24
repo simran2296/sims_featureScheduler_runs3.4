@@ -223,9 +223,9 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
                     mjd0 = conditions.mjd + 0.0
 
                 obs_list = []
-                for time, filternames, nv, exptime in zip(
-                    self.times, self.filters_at_times, self.nvis, self.exptimes
-                ):
+                for time, filternames, nv, exptime, index in zip(
+                    self.times, self.filters_at_times, self.nvis, self.exptimes,
+                    np.arange(np.size(self.times))):
                     for filtername in filternames:
                         # Subsitute y for z if needed
                         if (filtername == "z") & (
@@ -257,9 +257,9 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
                                 obs["HA_max"] = self.HA_max
                                 obs["HA_min"] = self.HA_min
 
-                                obs["note"] = self.survey_name + ", %i_t%i" % (
+                                obs["note"] = self.survey_name + ", %i_t%i_i%i" % (
                                     target_o_o.id,
-                                    time * 24,
+                                    time * 24, index
                                 )
                                 obs_list.append(obs)
                 observations = np.concatenate(obs_list)
@@ -481,6 +481,7 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None):
     # but this should work for now. Want to add a detailer to add a dither
     # position. 
 
+    # Maybe split night and twilight later.
     times = [0, 10/60., 20/60.]
     filters_at_times = ['r'] * 3
     nvis = [1] * 3
@@ -496,7 +497,7 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None):
             nvis=nvis,
             exptimes=exptimes,
             detailers=detailer_list,
-            too_types_to_follow=["SSO_night"],
+            too_types_to_follow=["SSO_night", "SSO_twilight"],
             survey_name="ToO, SSO",
         )
     )
