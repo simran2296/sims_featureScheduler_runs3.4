@@ -1346,7 +1346,7 @@ def set_run_info(dbroot=None, file_end="v3.4_", out_dir=".", scale=None):
         fileroot = os.path.basename(sys.argv[0]).replace(".py", "") + "_"
     else:
         fileroot = dbroot + "_"
-    fileroot += "s%i_" % scale
+    fileroot += "s%.1f_" % scale
     fileroot = os.path.join(out_dir, fileroot + file_end)
     return fileroot, extra_info
 
