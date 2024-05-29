@@ -137,7 +137,7 @@ def gen_bbh_events(mjd_start=61557, mjd_end=62502, scale=3, seed=43):
 
 def gen_neutrino_events(
     scale=4, seed=44, n_trigger=40.0, mjd_start=60796, mjd_end=60796 + 3652.5,
-    radius=2.
+    radius=0.
 ):
     rng = np.random.default_rng(seed=seed)
     n_events = int(n_trigger * scale)

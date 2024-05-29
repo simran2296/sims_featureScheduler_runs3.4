@@ -52,7 +52,7 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
         alt_max=85.0,
         HA_min=5,
         HA_max=19,
-        ignore_obs="dummy",
+        ignore_obs=["dummy"],
         dither=True,
         seed=42,
         npositions=7305,
@@ -193,19 +193,22 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
                 target_area = self.followup_footprint * target_o_o.footprint
                 # generate a list of pointings for that area
                 hpid_to_observe = np.where(target_area > 0)[0]
+                if hpid_to_observe.size > 0:
+                    # Check if we should spin the tesselation for the night.
+                    if self.dither & (conditions.night != self.night):
+                        self._spin_fields(conditions)
+                        self.night = conditions.night + 0
 
-                # Check if we should spin the tesselation for the night.
-                if self.dither & (conditions.night != self.night):
-                    self._spin_fields(conditions)
-                    self.night = conditions.night + 0
-
-                field_ids = np.unique(self.hp2fields[hpid_to_observe])
-                # Put the fields in a good order.
-                better_order = order_observations(
-                    self.fields["RA"][field_ids], self.fields["dec"][field_ids]
-                )
-                ras = self.fields["RA"][field_ids[better_order]]
-                decs = self.fields["dec"][field_ids[better_order]]
+                    field_ids = np.unique(self.hp2fields[hpid_to_observe])
+                    # Put the fields in a good order.
+                    better_order = order_observations(
+                        self.fields["RA"][field_ids], self.fields["dec"][field_ids]
+                    )
+                    ras = self.fields["RA"][field_ids[better_order]]
+                    decs = self.fields["dec"][field_ids[better_order]]
+                else:
+                    ras = np.array([target_o_o.ra_rad_center])
+                    decs = np.array([target_o_o.dec_rad_center])
 
                 # Figure out an MJD start time for the object if it is still rising and low.
                 alt, az = _approx_ra_dec2_alt_az(
@@ -460,8 +463,8 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
             nvis=nvis,
             exptimes=exptimes,
             detailers=detailer_list,
-            too_types_to_follow=["lensed_BNS_case_A"],
-            survey_name="ToO, LensedBNS_A",
+            too_types_to_follow=["lensed_BNS_case_B"],
+            survey_name="ToO, LensedBNS_B",
             split_long=split_long,
         ))
 
