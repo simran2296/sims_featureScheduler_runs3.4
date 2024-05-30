@@ -239,7 +239,7 @@ def gen_sso_events(n_events=300, twi_fraction=0.75, seed=52, radius=2.):
     return events
 
 
-def gen_all_events(scale=1, nside=32):
+def gen_all_events(scale=1, nside=32, include_gw=True, include_neutrino=True, include_ss=True):
 
     if scale == 0:
         return None, None
@@ -247,13 +247,16 @@ def gen_all_events(scale=1, nside=32):
     ra, dec = _hpid2_ra_dec(nside, np.arange(hp.nside2npix(nside)))
 
     events = []
-    events.append(gen_gw_events(scale=3 * scale))
-    events.append(gen_bbh_events(scale=3 * scale))
-    events.append(gen_lensed_BNS(scale=3.0 * scale))
+    if include_gw:
+        events.append(gen_gw_events(scale=3 * scale))
+        events.append(gen_bbh_events(scale=3 * scale))
+        events.append(gen_lensed_BNS(scale=3.0 * scale))
     # Not varying the number of neutrino events
-    events.append(gen_neutrino_events())
+    if include_neutrino:
+        events.append(gen_neutrino_events())
     # Not varying the number of SSO events
-    events.append(gen_sso_events())
+    if include_ss:
+        events.append(gen_sso_events())
     event_table = np.concatenate(events)
 
     event_table.sort(order="mjd_start")
