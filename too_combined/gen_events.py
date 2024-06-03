@@ -136,8 +136,12 @@ def gen_bbh_events(mjd_start=61557, mjd_end=62502, scale=3, seed=43):
 
 
 def gen_neutrino_events(
-    scale=4, seed=44, n_trigger=40.0, mjd_start=60796, mjd_end=60796 + 3652.5,
-    radius=0.
+    scale=4,
+    seed=44,
+    n_trigger=40.0,
+    mjd_start=60796,
+    mjd_end=60796 + 3652.5,
+    radius=0.0,
 ):
     rng = np.random.default_rng(seed=seed)
     n_events = int(n_trigger * scale)
@@ -197,7 +201,7 @@ def gen_lensed_BNS(mjd_start=61557, mjd_end=62502, scale=3, seed=45):
     return events
 
 
-def gen_sso_events(n_events=300, twi_fraction=0.75, seed=52, radius=2.):
+def gen_sso_events(n_events=300, twi_fraction=0.75, seed=52, radius=2.0):
     """Maybe just read in baseline to be sure we select things that would be visible"""
 
     rng = np.random.default_rng(seed=seed)
@@ -239,7 +243,9 @@ def gen_sso_events(n_events=300, twi_fraction=0.75, seed=52, radius=2.):
     return events
 
 
-def gen_all_events(scale=1, nside=32, include_gw=True, include_neutrino=True, include_ss=True):
+def gen_all_events(
+    scale=1, nside=32, include_gw=True, include_neutrino=True, include_ss=True
+):
 
     if scale == 0:
         return None, None
@@ -281,4 +287,3 @@ def gen_all_events(scale=1, nside=32, include_gw=True, include_neutrino=True, in
     events = SimTargetooServer(events)
 
     return events, event_table
-

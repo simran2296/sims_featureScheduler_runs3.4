@@ -1,4 +1,5 @@
 import healpy as hp
+from copy import copy
 import matplotlib.pylab as plt
 import numpy as np
 from rubin_scheduler.site_models import _read_fields
@@ -10,11 +11,20 @@ from rubin_scheduler.scheduler.utils import (
     scheduled_observation,
     comcam_tessellate,
     order_observations,
+    thetaphi2xyz,
+    xyz2thetaphi,
 )
-from rubin_scheduler.utils import (
-    _ra_dec2_hpid,
-    _approx_ra_dec2_alt_az,
-)
+from rubin_scheduler.utils import _ra_dec2_hpid, _approx_ra_dec2_alt_az
+
+
+def rotx(theta, x, y, z):
+    """rotate the x,y,z points theta radians about x axis"""
+    sin_t = np.sin(theta)
+    cos_t = np.cos(theta)
+    xp = x
+    yp = y * cos_t + z * sin_t
+    zp = -y * sin_t + z * cos_t
+    return xp, yp, zp
 
 
 class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
@@ -52,18 +62,21 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
         alt_max=85.0,
         HA_min=5,
         HA_max=19,
-        ignore_obs=["dummy"],
+        ignore_obs=None,
         dither=True,
         seed=42,
-        npositions=7305,
+        npositions=20000,
         n_snaps=2,
         n_usnaps=1,
         id_start=1,
         detailers=None,
         too_types_to_follow=[""],
-        split_long=False
+        split_long=False,
     ):
         # Figure out what else I need to super here
+
+        if ignore_obs is None:
+            ignore_obs = []
 
         self.basis_functions = basis_functions
         self.survey_name = survey_name
@@ -129,6 +142,7 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
         # http://mathworld.wolfram.com/SpherePointPicking.html
         self.lat = np.arccos(2.0 * rng.random(npositions) - 1.0)
         self.lon2 = rng.random(npositions) * np.pi * 2
+        self.spin_indx = 0
 
     def _check_list(self, conditions):
         """Check to see if the current mjd is good"""
@@ -174,6 +188,55 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
             else:
                 self.clear_script()
 
+    def _spin_fields(self):
+        """Spin the field tessellation to generate a random orientation
+
+        The default field tesselation is rotated randomly in longitude,
+        and then the pole is rotated to a random point on the sphere.
+
+        Automatically advances self.spin_indx when called.
+
+        """
+        lon = self.lon[self.spin_indx]
+        lat = self.lat[self.spin_indx]
+        lon2 = self.lon2[self.spin_indx]
+
+        # rotate longitude
+        ra = (self.fields_init["RA"] + lon) % (2.0 * np.pi)
+        dec = copy(self.fields_init["dec"])
+
+        # Now to rotate ra and dec about the x-axis
+        x, y, z = thetaphi2xyz(ra, dec + np.pi / 2.0)
+        xp, yp, zp = rotx(lat, x, y, z)
+        theta, phi = xyz2thetaphi(xp, yp, zp)
+        dec = phi - np.pi / 2
+        ra = theta + np.pi
+
+        # One more RA rotation
+        ra = (ra + lon2) % (2.0 * np.pi)
+
+        self.fields["RA"] = ra
+        self.fields["dec"] = dec
+        # Rebuild the kdtree with the new positions
+        # XXX-may be doing some ra,dec to conversions xyz more
+        # than needed.
+        self._hp2fieldsetup(ra, dec)
+
+        # Advance the spin index
+        self.spin_indx += 1
+
+    def _tesselate(self, hpid_to_observe):
+        self._spin_fields()
+        field_ids = np.unique(self.hp2fields[hpid_to_observe])
+        # Put the fields in a good order.
+        better_order = order_observations(
+            self.fields["RA"][field_ids], self.fields["dec"][field_ids]
+        )
+        ras = self.fields["RA"][field_ids[better_order]]
+        decs = self.fields["dec"][field_ids[better_order]]
+
+        return ras, decs
+
     def _new_event(self, target_o_o, conditions):
         """A new ToO event, generate any observations for followup"""
         # flush out any old observations or ones that have been completed
@@ -194,18 +257,7 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
                 # generate a list of pointings for that area
                 hpid_to_observe = np.where(target_area > 0)[0]
                 if hpid_to_observe.size > 0:
-                    # Check if we should spin the tesselation for the night.
-                    if self.dither & (conditions.night != self.night):
-                        self._spin_fields(conditions)
-                        self.night = conditions.night + 0
-
-                    field_ids = np.unique(self.hp2fields[hpid_to_observe])
-                    # Put the fields in a good order.
-                    better_order = order_observations(
-                        self.fields["RA"][field_ids], self.fields["dec"][field_ids]
-                    )
-                    ras = self.fields["RA"][field_ids[better_order]]
-                    decs = self.fields["dec"][field_ids[better_order]]
+                    ras, decs = self._tesselate(hpid_to_observe)
                 else:
                     ras = np.array([target_o_o.ra_rad_center])
                     decs = np.array([target_o_o.dec_rad_center])
@@ -229,15 +281,24 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
 
                 obs_list = []
                 for time, filternames, nv, exptime, index in zip(
-                    self.times, self.filters_at_times, self.nvis, self.exptimes,
-                    np.arange(np.size(self.times))):
-                    for filtername in filternames:
-                        # Subsitute y for z if needed
-                        if (filtername == "z") & (
-                            filtername not in conditions.mounted_filters
-                        ):
-                            filtername = "y"
-                        for i in range(nv):
+                    self.times,
+                    self.filters_at_times,
+                    self.nvis,
+                    self.exptimes,
+                    np.arange(np.size(self.times)),
+                ):
+                    for i in range(nv):
+                        # let's dither each pointing
+                        if (i != 0) & (hpid_to_observe.size > 0):
+                            ras, decs = self._tesselate(hpid_to_observe)
+
+                        for filtername in filternames:
+                            # Subsitute y for z if needed
+                            if (filtername == "z") & (
+                                filtername not in conditions.mounted_filters
+                            ):
+                                filtername = "y"
+
                             if filtername in conditions.mounted_filters:
                                 if filtername == "u":
                                     nexp = self.n_usnaps
@@ -246,14 +307,14 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
 
                                 # If we are doing a short exposure
                                 # need to be 1 snap for shutter limits
-                                if exptime < 29.:
+                                if exptime < 29.0:
                                     nexp = 1
 
                                 # check if we should break
                                 # long exposures into multiple
                                 if self.split_long:
                                     if exptime > 119:
-                                        nexp = int(np.round(exptime/30.))
+                                        nexp = int(np.round(exptime / 30.0))
 
                                 obs = scheduled_observation(ras.size)
                                 obs["RA"] = ras
@@ -275,7 +336,8 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
 
                                 obs["note"] = self.survey_name + ", %i_t%i_i%i" % (
                                     target_o_o.id,
-                                    time * 24, index
+                                    time * 24,
+                                    index,
                                 )
                                 obs_list.append(obs)
                 observations = np.concatenate(obs_list)
@@ -338,9 +400,9 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
     # work first
 
     times = [0, 24, 48]
-    filters_at_times = ['ugrizy', 'ugrizy', 'ugrizy']
+    filters_at_times = ["ugrizy", "ugrizy", "ugrizy"]
     nvis = [3, 1, 1]
-    exptimes = [120., 120., 120.]
+    exptimes = [120.0, 120.0, 120.0]
     result.append(
         ToO_scripted_survey(
             [],
@@ -358,9 +420,9 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
     )
 
     times = [0, 24, 48]
-    filters_at_times = ['gri', 'ri', 'ri']
+    filters_at_times = ["gri", "ri", "ri"]
     nvis = [3, 1, 1]
-    exptimes = [120., 180., 180.]
+    exptimes = [120.0, 180.0, 180.0]
     result.append(
         ToO_scripted_survey(
             [],
@@ -378,9 +440,9 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
     )
 
     times = [0, 24, 48]
-    filters_at_times = ['gr', 'gr', 'gr']
+    filters_at_times = ["gr", "gr", "gr"]
     nvis = [1, 1, 1]
-    exptimes = [120., 120., 120.]
+    exptimes = [120.0, 120.0, 120.0]
     result.append(
         ToO_scripted_survey(
             [],
@@ -401,12 +463,12 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
     # Black hole-black hole GW merger
     ############
 
-    # XXX--only considering bright objects now. 
+    # XXX--only considering bright objects now.
 
-    times = np.array([0, 2, 7, 9, 39])*24
-    filters_at_times = ['ugri'] * 5
+    times = np.array([0, 2, 7, 9, 39]) * 24
+    filters_at_times = ["ugri"] * 5
     nvis = [1] * 5
-    exptimes = [30.] * 5
+    exptimes = [30.0] * 5
 
     result.append(
         ToO_scripted_survey(
@@ -428,10 +490,10 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
     # Lensed BNS
     ############
 
-    times = [1., 1.]
-    filters_at_times = ['g', 'r']
-    nvis = [1, 1] 
-    exptimes = [30., 90.] 
+    times = [1.0, 1.0]
+    filters_at_times = ["g", "r"]
+    nvis = [1, 1]
+    exptimes = [30.0, 90.0]
 
     result.append(
         ToO_scripted_survey(
@@ -446,12 +508,15 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
             too_types_to_follow=["lensed_BNS_case_A"],
             survey_name="ToO, LensedBNS_A",
             split_long=split_long,
-        ))
+        )
+    )
 
-    times = [1.]
-    filters_at_times = ['gr',]
-    nvis = [10] 
-    exptimes = [150] 
+    times = [1.0]
+    filters_at_times = [
+        "gr",
+    ]
+    nvis = [10]
+    exptimes = [150]
 
     result.append(
         ToO_scripted_survey(
@@ -466,7 +531,8 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
             too_types_to_follow=["lensed_BNS_case_B"],
             survey_name="ToO, LensedBNS_B",
             split_long=split_long,
-        ))
+        )
+    )
 
     ############
     # Neutrino detector followup
@@ -474,9 +540,9 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
 
     # XXX--need to update footprint to cut out galactic latitude
 
-    times = [0, 15/60., 0.5, 24, 24.5, 144, 144, 144]
-    filters_at_times = ['g', 'r', 'z', 'g', 'r', 'g', 'r', 'z']
-    exptimes = [120, 30., 30., 120, 30., 30, 30, 30]
+    times = [0, 15 / 60.0, 0.5, 24, 24.5, 144, 144, 144]
+    filters_at_times = ["g", "r", "z", "g", "r", "g", "r", "z"]
+    exptimes = [120, 30.0, 30.0, 120, 30.0, 30, 30, 30]
     nvis = [1, 1, 1, 1, 1, 1, 1, 1]
 
     # XXX--need to add a u-band with very long flush time.
@@ -502,13 +568,12 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
     ############
     # For the solar system objects, probably want a custom survey object,
     # but this should work for now. Want to add a detailer to add a dither
-    # position. 
+    # position.
 
-    
-    times = [0, 33/60., 66/60.]
-    filters_at_times = ['r'] * 3
+    times = [0, 33 / 60.0, 66 / 60.0]
+    filters_at_times = ["r"] * 3
     nvis = [1] * 3
-    exptimes = [30.] * 3
+    exptimes = [30.0] * 3
 
     result.append(
         ToO_scripted_survey(
@@ -526,11 +591,10 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
         )
     )
 
-
-    times = [0, 10/60., 20/60.]
-    filters_at_times = ['z'] * 3
+    times = [0, 10 / 60.0, 20 / 60.0]
+    filters_at_times = ["z"] * 3
     nvis = [2] * 3
-    exptimes = [15.] * 3
+    exptimes = [15.0] * 3
 
     result.append(
         ToO_scripted_survey(

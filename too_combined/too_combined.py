@@ -286,6 +286,7 @@ def blob_for_long(
     HA_min=12,
     HA_max=24 - 3.5,
     blob_names=[],
+    scheduled_respect=30.0,
 ):
     """
     Generate surveys that take observations in blobs.
@@ -391,6 +392,9 @@ def blob_for_long(
                 season_end_hour=season_end_hour,
             )
         )
+
+        # Make sure we respect scheduled observations
+        bfs.append((bf.TimeToScheduledBasisFunction(time_needed=scheduled_respect), 0))
 
         # Masks, give these 0 weight
         bfs.append(
@@ -1411,12 +1415,15 @@ def example_scheduler(args):
 
     camera_ddf_rot_limit = 75.0  # degrees
 
-    split_string = ''
+    split_string = ""
     if split_long:
-        split_string = 'split_'
+        split_string = "split_"
 
     fileroot, extra_info = set_run_info(
-        dbroot=dbroot, file_end="%sv3.4_" % split_string, out_dir=out_dir, scale=too_scale
+        dbroot=dbroot,
+        file_end="%sv3.4_" % split_string,
+        out_dir=out_dir,
+        scale=too_scale,
     )
 
     pattern_dict = {
@@ -1552,7 +1559,9 @@ def example_scheduler(args):
     detailer_list.append(detailers.Rottep2RotspDesiredDetailer())
 
     toos = gen_too_surveys(
-        nside=nside, detailer_list=detailer_list, too_footprint=too_footprint,
+        nside=nside,
+        detailer_list=detailer_list,
+        too_footprint=too_footprint,
         split_long=split_long,
     )
 
@@ -1668,10 +1677,8 @@ def sched_argparser():
         help="Nside should be set to default (32) except for tests.",
     )
 
-    parser.add_argument("--too_scale", type=float, default=10)
-    parser.add_argument(
-        "--split_long", dest="split_long", action="store_true"
-    )
+    parser.add_argument("--too_scale", type=float, default=1)
+    parser.add_argument("--split_long", dest="split_long", action="store_true")
     parser.set_defaults(split_long=False)
 
     return parser
