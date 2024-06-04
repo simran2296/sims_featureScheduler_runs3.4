@@ -416,6 +416,7 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
             too_types_to_follow=["GW_case_A"],
             survey_name="ToO, GW_case_A",
             split_long=split_long,
+            flushtime=24.,
         )
     )
 
@@ -436,6 +437,7 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
             too_types_to_follow=["GW_case_B", "GW_case_C"],
             survey_name="ToO, GW_case_B_C",
             split_long=split_long,
+            flushtime=24,
         )
     )
 
@@ -456,6 +458,7 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
             too_types_to_follow=["GW_case_D", "GW_case_E"],
             survey_name="ToO, GW_case_D_E",
             split_long=split_long,
+            flushtime=24,
         )
     )
 
@@ -483,6 +486,7 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
             too_types_to_follow=["BBH_case_A", "BBH_case_B", "BBH_case_C"],
             survey_name="ToO, BBH",
             split_long=split_long,
+            flushtime=8.,
         )
     )
 
@@ -508,6 +512,7 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
             too_types_to_follow=["lensed_BNS_case_A"],
             survey_name="ToO, LensedBNS_A",
             split_long=split_long,
+            flushtime=24.,
         )
     )
 
@@ -531,6 +536,7 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
             too_types_to_follow=["lensed_BNS_case_B"],
             survey_name="ToO, LensedBNS_B",
             split_long=split_long,
+            flushtime=24.,
         )
     )
 
@@ -560,6 +566,7 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
             too_types_to_follow=["neutrino"],
             survey_name="ToO, neutrino",
             split_long=split_long,
+            flushtime=8.,
         )
     )
 
@@ -588,6 +595,7 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
             too_types_to_follow=["SSO_night"],
             survey_name="ToO, SSO_night",
             split_long=split_long,
+            flushtime=2.,
         )
     )
 
@@ -609,6 +617,7 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
             too_types_to_follow=["SSO_twilight"],
             survey_name="ToO, SSO_twi",
             split_long=split_long,
+            flushtime=2.,
         )
     )
 
