@@ -293,54 +293,56 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
                             ras, decs = self._tesselate(hpid_to_observe)
 
                         for filtername in filternames:
-                            # Subsitute y for z if needed
-                            if (filtername == "z") & (
-                                filtername not in conditions.mounted_filters
-                            ):
-                                filtername = "y"
+                            # Subsitute y for z if needed on first observation
+                            if i == 0:
+                                if (filtername == "z") & (
+                                    filtername not in conditions.mounted_filters
+                                ):
+                                    filtername = "y"
 
-                            if filtername in conditions.mounted_filters:
-                                if filtername == "u":
-                                    nexp = self.n_usnaps
-                                else:
-                                    nexp = self.n_snaps
+                            if filtername == "u":
+                                nexp = self.n_usnaps
+                            else:
+                                nexp = self.n_snaps
 
-                                # If we are doing a short exposure
-                                # need to be 1 snap for shutter limits
-                                if exptime < 29.0:
-                                    nexp = 1
+                            # If we are doing a short exposure
+                            # need to be 1 snap for shutter limits
+                            if exptime < 29.0:
+                                nexp = 1
 
-                                # check if we should break
-                                # long exposures into multiple
-                                if self.split_long:
-                                    if exptime > 119:
-                                        nexp = int(np.round(exptime / 30.0))
+                            # check if we should break
+                            # long exposures into multiple
+                            if self.split_long:
+                                if exptime > 119:
+                                    nexp = int(np.round(exptime / 30.0))
 
-                                obs = scheduled_observation(ras.size)
-                                obs["RA"] = ras
-                                obs["dec"] = decs
-                                obs["mjd"] = mjd0 + time
-                                obs["flush_by_mjd"] = mjd0 + time + self.flushtime
-                                obs["exptime"] = exptime
-                                obs["nexp"] = nexp
-                                obs["filter"] = filtername
-                                obs["rotSkyPos"] = (
-                                    0  # XXX--maybe throw a rotation detailer in here
-                                )
-                                obs["mjd_tol"] = self.mjd_tol
-                                obs["dist_tol"] = self.dist_tol
-                                obs["alt_min"] = self.alt_min
-                                obs["alt_max"] = self.alt_max
-                                obs["HA_max"] = self.HA_max
-                                obs["HA_min"] = self.HA_min
+                            obs = scheduled_observation(ras.size)
+                            obs["RA"] = ras
+                            obs["dec"] = decs
+                            obs["mjd"] = mjd0 + time
+                            obs["flush_by_mjd"] = mjd0 + time + self.flushtime
+                            obs["exptime"] = exptime
+                            obs["nexp"] = nexp
+                            obs["filter"] = filtername
+                            obs["rotSkyPos"] = (
+                                0  # XXX--maybe throw a rotation detailer in here
+                            )
+                            obs["mjd_tol"] = self.mjd_tol
+                            obs["dist_tol"] = self.dist_tol
+                            obs["alt_min"] = self.alt_min
+                            obs["alt_max"] = self.alt_max
+                            obs["HA_max"] = self.HA_max
+                            obs["HA_min"] = self.HA_min
 
-                                obs["note"] = self.survey_name + ", %i_t%i_i%i" % (
-                                    target_o_o.id,
-                                    time * 24,
-                                    index,
-                                )
-                                obs_list.append(obs)
+                            obs["note"] = self.survey_name + ", %i_t%i_i%i" % (
+                                target_o_o.id,
+                                time * 24,
+                                index,
+                            )
+                            obs_list.append(obs)
+
                 observations = np.concatenate(obs_list)
+                
                 if self.obs_wanted is not None:
                     if np.size(self.obs_wanted) > 0:
                         observations = np.concatenate([self.obs_wanted, observations])
@@ -416,7 +418,7 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
             too_types_to_follow=["GW_case_A"],
             survey_name="ToO, GW_case_A",
             split_long=split_long,
-            flushtime=24.,
+            flushtime=48.,
         )
     )
 
@@ -437,7 +439,7 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
             too_types_to_follow=["GW_case_B", "GW_case_C"],
             survey_name="ToO, GW_case_B_C",
             split_long=split_long,
-            flushtime=24,
+            flushtime=48,
         )
     )
 
@@ -458,7 +460,7 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
             too_types_to_follow=["GW_case_D", "GW_case_E"],
             survey_name="ToO, GW_case_D_E",
             split_long=split_long,
-            flushtime=24,
+            flushtime=48,
         )
     )
 
@@ -486,7 +488,7 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
             too_types_to_follow=["BBH_case_A", "BBH_case_B", "BBH_case_C"],
             survey_name="ToO, BBH",
             split_long=split_long,
-            flushtime=8.,
+            flushtime=48,
         )
     )
 
@@ -512,7 +514,7 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
             too_types_to_follow=["lensed_BNS_case_A"],
             survey_name="ToO, LensedBNS_A",
             split_long=split_long,
-            flushtime=24.,
+            flushtime=48.,
         )
     )
 
@@ -536,7 +538,7 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
             too_types_to_follow=["lensed_BNS_case_B"],
             survey_name="ToO, LensedBNS_B",
             split_long=split_long,
-            flushtime=24.,
+            flushtime=48.,
         )
     )
 
@@ -546,9 +548,9 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
 
     # XXX--need to update footprint to cut out galactic latitude
 
-    times = [0, 15 / 60.0, 0.5, 24, 24.5, 144, 144, 144]
-    filters_at_times = ["g", "r", "z", "g", "r", "g", "r", "z"]
-    exptimes = [120, 30.0, 30.0, 120, 30.0, 30, 30, 30]
+    times = [0, 0, 15 / 60.0, 0.5, 24, 24.5, 144]
+    filters_at_times = ["g", "r", "z", "g", "r", "grz"]
+    exptimes = [120, 30.0, 30.0, 120, 30.0, 30]
     nvis = [1, 1, 1, 1, 1, 1, 1, 1]
 
     # XXX--need to add a u-band with very long flush time.
@@ -567,6 +569,30 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
             survey_name="ToO, neutrino",
             split_long=split_long,
             flushtime=8.,
+        )
+    )
+
+    times = [0]
+    filters_at_times = ["u"]
+    exptimes = [30]
+    nvis = [1]
+
+    # U-band with very long flush time.
+
+    result.append(
+        ToO_scripted_survey(
+            [],
+            nside=nside,
+            followup_footprint=too_footprint,
+            times=times,
+            filters_at_times=filters_at_times,
+            nvis=nvis,
+            exptimes=exptimes,
+            detailers=detailer_list,
+            too_types_to_follow=["neutrino"],
+            survey_name="ToO, neutrino_u",
+            split_long=split_long,
+            flushtime=1440,
         )
     )
 
