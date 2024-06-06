@@ -52,7 +52,7 @@ class TargetoO:
         self.too_type = too_type
 
 
-def gen_gw_events(mjd_start=61557, mjd_end=62502, scale=3, seed=42):
+def gen_gw_events(mjd_start=61557, mjd_end=62502, scale=1, seed=42):
     """Generate gravitational wave events"""
 
     """
@@ -96,7 +96,7 @@ def gen_gw_events(mjd_start=61557, mjd_end=62502, scale=3, seed=42):
     return events
 
 
-def gen_bbh_events(mjd_start=61557, mjd_end=62502, scale=3, seed=43):
+def gen_bbh_events(mjd_start=61557, mjd_end=62502, scale=1, seed=43):
     rng = np.random.default_rng(seed=seed)
     """
     Case A) 9 triggers with 10 sq deg area -> yields 3 observable
@@ -136,9 +136,9 @@ def gen_bbh_events(mjd_start=61557, mjd_end=62502, scale=3, seed=43):
 
 
 def gen_neutrino_events(
-    scale=4,
+    scale=1,
     seed=44,
-    n_trigger=40.0,
+    n_trigger=160.0,
     mjd_start=60796,
     mjd_end=60796 + 3652.5,
     radius=0.0,
@@ -161,7 +161,7 @@ def gen_neutrino_events(
     return events
 
 
-def gen_lensed_BNS(mjd_start=61557, mjd_end=62502, scale=3, seed=45):
+def gen_lensed_BNS(mjd_start=61557, mjd_end=62502, scale=1, seed=45):
 
     rng = np.random.default_rng(seed=seed)
 

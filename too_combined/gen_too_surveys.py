@@ -144,6 +144,38 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
         self.lon2 = rng.random(npositions) * np.pi * 2
         self.spin_indx = 0
 
+    # Need to make sure new set_script call doesn't clobber old script!
+    def set_script(self, obs_wanted, append=True):
+        """
+        Parameters
+        ----------
+        obs_wanted : np.array
+            The observations that should be executed. Needs to have
+            columns with dtype names:
+            Should be from lsst.sim.scheduler.utils.scheduled_observation
+        append : bool
+            Should the obs_wanted be appended to any script already set?
+        """
+
+        obs_wanted.sort(order=["mjd", "filter"])
+        # Give each desired observation a unique "scripted ID". To be used for
+        # matching and logging later.
+        obs_wanted["scripted_id"] = np.arange(self.id_start, self.id_start + np.size(obs_wanted))
+        # Update so if we set the script again the IDs will not be reused.
+        self.id_start = np.max(obs_wanted["scripted_id"]) + 1
+
+        # If we already have a script and append
+        if append & (self.obs_wanted is not None):
+            self.obs_wanted = np.concatenate([self.obs_wanted, obs_wanted])
+            self.obs_wanted.sort(order=["mjd", "filter"])
+        else:
+            self.obs_wanted = obs_wanted
+
+        self.mjd_start = self.obs_wanted["mjd"] - self.obs_wanted["mjd_tol"]
+        # Here is the atribute that core scheduler checks to
+        # broadcast scheduled observations in the conditions object.
+        self.scheduled_obs = self.obs_wanted["mjd"]
+
     def _check_list(self, conditions):
         """Check to see if the current mjd is good"""
         observation = None
@@ -401,10 +433,13 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
     # if there's limited time before it sets. Let's see if this can
     # work first
 
-    times = [0, 24, 48]
-    filters_at_times = ["ugrizy", "ugrizy", "ugrizy"]
-    nvis = [3, 1, 1]
-    exptimes = [120.0, 120.0, 120.0]
+    # XXX--instructions say do 4th night only 1/3 of the time.
+    # Just trying always for now
+
+    times = [0, 24, 48, 72]
+    filters_at_times = ["ugrizy", "ugrizy", "ugrizy", "ugrizy"]
+    nvis = [3, 1, 1, 1]
+    exptimes = [120.0, 120.0, 120.0, 120.0]
     result.append(
         ToO_scripted_survey(
             [],
@@ -422,10 +457,10 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
         )
     )
 
-    times = [0, 24, 48]
-    filters_at_times = ["gri", "ri", "ri"]
-    nvis = [3, 1, 1]
-    exptimes = [120.0, 180.0, 180.0]
+    times = [0, 24, 48, 72]
+    filters_at_times = ["gri", "ri", "ri", "ri"]
+    nvis = [3, 1, 1, 1]
+    exptimes = [120.0, 180.0, 180.0, 180.]
     result.append(
         ToO_scripted_survey(
             [],
@@ -443,10 +478,10 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
         )
     )
 
-    times = [0, 24, 48]
-    filters_at_times = ["gr", "gr", "gr"]
-    nvis = [1, 1, 1]
-    exptimes = [120.0, 120.0, 120.0]
+    times = [0, 24, 48, 72]
+    filters_at_times = ["gr", "gr", "gr", "gr"]
+    nvis = [1, 1, 1, 1]
+    exptimes = [120.0, 120.0, 120.0, 120.]
     result.append(
         ToO_scripted_survey(
             [],
