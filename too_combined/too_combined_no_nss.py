@@ -286,6 +286,7 @@ def blob_for_long(
     HA_min=12,
     HA_max=24 - 3.5,
     blob_names=[],
+    scheduled_respect=30.0,
 ):
     """
     Generate surveys that take observations in blobs.
@@ -391,6 +392,9 @@ def blob_for_long(
                 season_end_hour=season_end_hour,
             )
         )
+
+        # Make sure we respect scheduled observations
+        bfs.append((bf.TimeToScheduledBasisFunction(time_needed=scheduled_respect), 0))
 
         # Masks, give these 0 weight
         bfs.append(
@@ -1456,10 +1460,7 @@ def example_scheduler(args):
     repeat_night_weight = None
 
     sim_ToOs, event_table = gen_all_events(
-        scale=too_scale,
-        nside=nside,
-        include_ss=False,
-        include_neutrino=False,
+        scale=too_scale, nside=nside, include_neutrino=False,
     )  # generate_events(
     # nside=nside, survey_length=survey_length, rate=1000., mjd_start=mjd_start
     # )
@@ -1676,7 +1677,7 @@ def sched_argparser():
         help="Nside should be set to default (32) except for tests.",
     )
 
-    parser.add_argument("--too_scale", type=float, default=10)
+    parser.add_argument("--too_scale", type=float, default=1)
     parser.add_argument("--split_long", dest="split_long", action="store_true")
     parser.set_defaults(split_long=False)
 
