@@ -144,6 +144,9 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
         self.lon2 = rng.random(npositions) * np.pi * 2
         self.spin_indx = 0
 
+        # list to keep track of alerts we have already seen
+        self.seen_alerts = []
+
     # Need to make sure new set_script call doesn't clobber old script!
     def set_script(self, obs_wanted, append=True):
         """
@@ -274,12 +277,19 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
         # flush out any old observations or ones that have been completed
         self.flush_script(conditions)
 
-        # check that this is the type of ToO we are supposed to trigger on
+        # Check that this is the type of ToO we are supposed to trigger on
         correct_type = False
         for type_to_follow in self.too_types_to_follow:
             if type_to_follow in target_o_o.too_type:
                 correct_type = True
-        if correct_type:
+
+        # Check that we have not seen this alert yet
+        unseen = False
+        if target_o_o.tooid not in self.seen_alerts:
+            unseen = True
+
+        if correct_type & unseen:
+            self.seen_alerts.append(target_o_o.tooid)
             # Check that the event center is in the footprint we want to observe
             hpid_center = _ra_dec2_hpid(
                 self.nside, target_o_o.ra_rad_center, target_o_o.dec_rad_center
