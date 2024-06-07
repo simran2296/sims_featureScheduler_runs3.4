@@ -285,11 +285,11 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
 
         # Check that we have not seen this alert yet
         unseen = False
-        if target_o_o.too_id not in self.seen_alerts:
+        if target_o_o.id not in self.seen_alerts:
             unseen = True
 
         if correct_type & unseen:
-            self.seen_alerts.append(target_o_o.too_id)
+            self.seen_alerts.append(target_o_o.id)
             # Check that the event center is in the footprint we want to observe
             hpid_center = _ra_dec2_hpid(
                 self.nside, target_o_o.ra_rad_center, target_o_o.dec_rad_center
