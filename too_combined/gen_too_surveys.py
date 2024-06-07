@@ -219,7 +219,7 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
             )[0]
             if np.size(still_relevant) > 0:
                 observations = self.obs_wanted[still_relevant]
-                self.set_script(observations)
+                self.set_script(observations, append=False)
             else:
                 self.clear_script()
 
