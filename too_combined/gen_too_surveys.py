@@ -215,8 +215,9 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
         if self.obs_wanted is not None:
             still_relevant = np.where(
                 (self.obs_wanted["observed"] == False)
-                & (self.obs_wanted["flush_by_mjd"] < conditions.mjd)
+                & (self.obs_wanted["flush_by_mjd"] > conditions.mjd)
             )[0]
+
             if np.size(still_relevant) > 0:
                 observations = self.obs_wanted[still_relevant]
                 self.set_script(observations, append=False)
@@ -395,8 +396,9 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
                     self._new_event(target_o_o, conditions)
                     self.last_event_id = target_o_o.id
 
-        observation = self.generate_observations_rough(conditions) #self._check_list(conditions)
-        if observation is None:
+        observation = self.generate_observations_rough(conditions)
+
+        if (observation is None) | (len(observation) == 0):
             self.reward = -np.inf
         else:
             self.reward = self.reward_val
