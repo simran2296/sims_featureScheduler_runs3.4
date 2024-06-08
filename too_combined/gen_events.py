@@ -278,7 +278,7 @@ def gen_all_events(
                 i,
                 footprint,
                 event_time,
-                event_table["expires"][i],
+                event_table["expires"][i] - event_table["mjd_start"][i],
                 ra_rad_center=event_table["ra"][i],
                 dec_rad_center=event_table["dec"][i],
                 too_type=event_table["ToO_label"][i],

@@ -179,9 +179,6 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
         # broadcast scheduled observations in the conditions object.
         self.scheduled_obs = self.obs_wanted["mjd"]
 
-        if np.size(self.obs_wanted) > 1e4:
-            import pdb ; pdb.set_trace()
-
     def _check_list(self, conditions):
         """Check to see if the current mjd is good"""
         observation = None
@@ -385,6 +382,8 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
                                 index,
                             )
                             obs_list.append(obs)
+                observations = np.concatenate(obs_list)
+                self.set_script(observations)
 
     def calc_reward_function(self, conditions):
         """If there is an observation ready to go, execute it, otherwise, -inf"""
@@ -396,7 +395,7 @@ class ToO_scripted_survey(ScriptedSurvey, BaseMarkovSurvey):
                     self._new_event(target_o_o, conditions)
                     self.last_event_id = target_o_o.id
 
-        observation = self._check_list(conditions)
+        observation = self.generate_observations_rough(conditions) #self._check_list(conditions)
         if observation is None:
             self.reward = -np.inf
         else:
