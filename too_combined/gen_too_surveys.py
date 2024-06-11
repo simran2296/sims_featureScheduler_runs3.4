@@ -441,12 +441,12 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
     # work first
 
     # XXX--instructions say do 4th night only 1/3 of the time.
-    # Just trying always for now
+    # Just leaving off for now
 
-    times = [0, 24, 48, 72]
-    filters_at_times = ["ugrizy", "ugrizy", "ugrizy", "ugrizy"]
-    nvis = [3, 1, 1, 1]
-    exptimes = [120.0, 120.0, 120.0, 120.0]
+    times = [0, 24, 48]
+    filters_at_times = ["ugrizy", "ugrizy", "ugrizy"]
+    nvis = [3, 1, 1]
+    exptimes = [120.0, 120.0, 120.0]
     result.append(
         ToO_scripted_survey(
             [],
@@ -594,8 +594,6 @@ def gen_too_surveys(nside=32, detailer_list=None, too_footprint=None, split_long
     filters_at_times = ["g", "r", "z", "g", "r", "grz"]
     exptimes = [120, 30.0, 30.0, 120, 30.0, 30]
     nvis = [1, 1, 1, 1, 1, 1, 1, 1]
-
-    # XXX--need to add a u-band with very long flush time.
 
     result.append(
         ToO_scripted_survey(
