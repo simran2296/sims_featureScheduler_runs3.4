@@ -1,0 +1,2 @@
+#!/bin/bash
+rsync -av --progress hyak:"/usr/lusers/yoachim/runs34/maf/summary.h5" .
