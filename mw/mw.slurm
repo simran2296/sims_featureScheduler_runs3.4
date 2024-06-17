@@ -55,7 +55,7 @@ cd /gscratch/scrubbed/yoachim/sims_featureScheduler_runs3.4/mw
 ## run all the baseline commands in parallel
 module load parallel-20170722
 
-cat mw.sh | parallel -j 28
+# cat mw.sh | parallel -j 28
 
 rm maf.sh
 ls *10yrs.db | xargs -I'{}' echo "glance_dir --db '{}'" > maf.sh
@@ -67,4 +67,4 @@ ls *10yrs.db | xargs -I'{}' echo "metadata_dir --db '{}'" >> maf.sh
 generate_ss 
 cat ss_script.sh >> maf.sh
 
-# cat maf.sh | parallel -j 28
+cat maf.sh | parallel -j 28
