@@ -1447,6 +1447,7 @@ def example_scheduler(args):
     neo_elong_req = args.neo_elong_req
     neo_area_req = args.neo_area_req
     nside = args.nside
+    lmc_blue = args.lmc_blue
 
     # Be sure to also update and regenerate DDF grid save file if changing mjd_start
     mjd_start = 60796.0
@@ -1455,7 +1456,7 @@ def example_scheduler(args):
     camera_ddf_rot_limit = 75.0  # degrees
 
     fileroot, extra_info = set_run_info(
-        dbroot=dbroot, file_end="v3.4_", out_dir=out_dir
+        dbroot=dbroot, file_end="blue%.2f_v3.4_" % lmc_blue, out_dir=out_dir
     )
 
     pattern_dict = {
@@ -1473,7 +1474,30 @@ def example_scheduler(args):
     reverse_neo_night_pattern = [not val for val in neo_night_pattern]
 
     # Modify the footprint
-    sky = CustomAreaMap(nside=nside, smc_radius=4, lmc_radius=6)
+    magellenic_clouds_base = {"u": 0.65, "g": 0.65, "r": 1.1, "i": 1.1, "z": 0.34, "y": 0.35}
+
+    magellenic_clouds_ratios = {}
+    magellenic_clouds_ratios['u'] = magellenic_clouds_base['u'] * lmc_blue
+    magellenic_clouds_ratios['g'] = magellenic_clouds_base['g'] * lmc_blue
+    magellenic_clouds_ratios['z'] = magellenic_clouds_base['z']
+    magellenic_clouds_ratios['y'] = magellenic_clouds_base['y']
+
+    base_sum = 0
+    for key in magellenic_clouds_base:
+        base_sum += magellenic_clouds_base[key]
+
+    ratios_sum = 0
+    for key in magellenic_clouds_ratios:
+        ratios_sum += magellenic_clouds_ratios[key]
+
+    red_val = (base_sum - ratios_sum)/2.
+    magellenic_clouds_ratios['r'] = red_val
+    magellenic_clouds_ratios['i'] = red_val
+
+    import pdb ; pdb.set_trace()
+
+    sky = CustomAreaMap(nside=nside, smc_radius=4, lmc_radius=6,
+                        magellenic_clouds_ratios=magellenic_clouds_ratios)
     footprints_hp_array, labels = sky.return_maps()
 
     wfd_indx = np.where(
@@ -1678,6 +1702,14 @@ def sched_argparser():
         default=32,
         help="Nside should be set to default (32) except for tests.",
     )
+    parser.add_argument(
+        "--lmc_blue",
+        type=float,
+        default=1,
+        help="Nside should be set to default (32) except for tests.",
+    )
+
+
 
     return parser
 
