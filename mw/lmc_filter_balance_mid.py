@@ -1494,11 +1494,8 @@ def example_scheduler(args):
     magellenic_clouds_ratios['r'] = red_val
     magellenic_clouds_ratios['i'] = red_val
 
-    import pdb ; pdb.set_trace()
-
-    sky = CustomAreaMap(nside=nside, smc_radius=4, lmc_radius=6,
-                        magellenic_clouds_ratios=magellenic_clouds_ratios)
-    footprints_hp_array, labels = sky.return_maps()
+    sky = CustomAreaMap(nside=nside, smc_radius=4, lmc_radius=6)
+    footprints_hp_array, labels = sky.return_maps(magellenic_clouds_ratios=magellenic_clouds_ratios)
 
     wfd_indx = np.where(
         (labels == "lowdust") | (labels == "LMC_SMC") | (labels == "virgo")
