@@ -159,11 +159,12 @@ def standard_bf(
     """
 
     # mask out the SCP for template generation
-    sa = CustomAreaMap(nside=nside, smc_radius=4, lmc_radius=6)
-    footprints_hp_array, labels = sa.return_maps()
+    #sa = CustomAreaMap(nside=nside, smc_radius=4, lmc_radius=6)
+    #footprints_hp_array, labels = sa.return_maps()
 
-    scp_mask = footprints_hp_array["r"] * 0
-    scp_mask[np.where(labels == "scp")] = np.nan
+    #scp_mask = footprints_hp_array["r"] * 0
+    #scp_mask[np.where(labels == "scp")] = np.nan
+    scp_mask = 1
 
     template_weights = {
         "u": u_template_weight,
@@ -1474,7 +1475,13 @@ def example_scheduler(args):
     reverse_neo_night_pattern = [not val for val in neo_night_pattern]
 
     # Modify the footprint
+
+    low_dust_ratios = {"u": 0.37, "g": 0.45, "r": 1.0, "i": 1.0, "z": 0.9, "y": 0.9}
+    virgo_ratios = {"u": 0.37, "g": 0.45, "r": 1.0, "i": 1.0, "z": 0.9, "y": 0.9}
+    euclid_ratios = {"u": 0.37, "g": 0.45, "r": 1.0, "i": 1.0, "z": 0.9, "y": 0.9}
+
     magellenic_clouds_base = {"u": 0.65, "g": 0.65, "r": 1.1, "i": 1.1, "z": 0.34, "y": 0.35}
+    #magellenic_clouds_base = {"u": 0.37, "g": 0.45, "r": 1.0, "i": 1.0, "z": 0.9, "y": 0.9}
 
     magellenic_clouds_ratios = {}
     magellenic_clouds_ratios['u'] = magellenic_clouds_base['u'] * lmc_blue
@@ -1495,7 +1502,10 @@ def example_scheduler(args):
     magellenic_clouds_ratios['i'] = red_val
 
     sky = CustomAreaMap(nside=nside, smc_radius=4, lmc_radius=6)
-    footprints_hp_array, labels = sky.return_maps(magellenic_clouds_ratios=magellenic_clouds_ratios)
+    footprints_hp_array, labels = sky.return_maps(magellenic_clouds_ratios=magellenic_clouds_ratios,
+                                                  low_dust_ratios=low_dust_ratios,
+                                                  virgo_ratios=virgo_ratios,
+                                                  euclid_ratios=euclid_ratios)
 
     wfd_indx = np.where(
         (labels == "lowdust") | (labels == "LMC_SMC") | (labels == "virgo")
